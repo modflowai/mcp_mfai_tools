@@ -23,7 +23,8 @@ This is a production-ready MCP (Model Context Protocol) Server deployed on Cloud
 - `multi-provider-handler.ts`: Handles provider selection UI and OAuth callbacks
 - `github-handler.ts`: GitHub-specific OAuth flow
 - `google-handler.ts`: Google-specific OAuth flow  
-- `tools/text-search.ts`: Database search tool for MODFLOW documentation
+- `tools/text-search.ts`: Full-text database search tool with acronym expansion
+- `tools/semantic-search.ts`: Enhanced semantic search with similarity ranking
 
 ## Development Commands
 
@@ -83,19 +84,293 @@ wrangler kv:namespace create OAUTH_KV
 
 ## Adding New MCP Tools
 
-Tools are now defined directly in `mcp-agent.ts`. To add new tools:
-1. Define the tool schema (name, description, inputSchema)
-2. Add the tool to the `toolsList` array in the `init()` method
-3. Add a case handler in the `CallToolRequestSchema` handler
-4. Implement the tool logic as a private method
+### Overview
+The MCP server supports two architectural patterns for adding tools:
+1. **Inline tools** (legacy): Defined directly in `mcp-agent.ts`
+2. **Modular tools** (recommended): Separate tool files in the `tools/` directory
+
+### Recommended Process: Modular Tools
+
+#### Step 1: Create Tool File
+Create a new file in `tools/` directory (e.g., `tools/my-new-tool.ts`):
+
+```typescript
+/**
+ * My New Tool
+ * Description of what this tool does
+ */
+
+import type { NeonQueryFunction } from "@neondatabase/serverless";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+
+// Tool schema definition
+export const myNewToolSchema = {
+  name: "my_new_tool",
+  description: `
+    Detailed description of what the tool does.
+    Include usage examples and important notes.
+  `,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Description of the query parameter',
+      },
+      optional_param: {
+        type: 'string',
+        description: 'Description of optional parameter',
+      },
+    },
+    required: ['query'],
+  }
+};
+
+// Tool implementation
+export async function myNewTool(args: any, sql: NeonQueryFunction<false, false>) {
+  try {
+    const { query, optional_param } = args;
+
+    // Validate inputs
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new Error('Query parameter is required and cannot be empty');
+    }
+
+    // Implement your tool logic here
+    console.log('[MY NEW TOOL] Processing:', query);
+    
+    // Execute database queries or other operations
+    // const results = await sql`SELECT * FROM table WHERE condition = ${query}`;
+
+    // Format and return results
+    return {
+      content: [{
+        type: "text" as const,
+        text: `Tool executed successfully with query: ${query}`
+      }]
+    };
+
+  } catch (error) {
+    return {
+      content: [{
+        type: "text" as const,
+        text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }]
+    };
+  }
+}
+```
+
+#### Step 2: Register Tool in mcp-agent.ts
+
+1. **Import the tool**:
+```typescript
+import { myNewToolSchema, myNewTool } from "./tools/my-new-tool.js";
+```
+
+2. **Add to toolsList array**:
+```typescript
+// Register available tools
+const toolsList = [
+  {
+    name: textSearchSchema.name,
+    description: textSearchSchema.description,
+    inputSchema: textSearchSchema.inputSchema,
+  },
+  {
+    name: semanticSearchSchema.name,
+    description: semanticSearchSchema.description,
+    inputSchema: semanticSearchSchema.inputSchema,
+  },
+  {
+    name: myNewToolSchema.name,
+    description: myNewToolSchema.description,
+    inputSchema: myNewToolSchema.inputSchema,
+  }
+];
+```
+
+3. **Add case handler**:
+```typescript
+switch (name) {
+  case 'text_search_repository':
+    return await this.handleTextSearchRepository(args);
+  
+  case 'semantic_search_repository':
+    return await this.handleSemanticSearchRepository(args);
+  
+  case 'my_new_tool':
+    return await this.handleMyNewTool(args);
+  
+  default:
+    throw new McpError(
+      ErrorCode.MethodNotFound,
+      `Unknown tool: ${name}`
+    );
+}
+```
+
+4. **Implement handler method**:
+```typescript
+private async handleMyNewTool(args: any) {
+  return await myNewTool(args, this.sql);
+}
+```
+
+5. **Update logging**:
+```typescript
+console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, myNewToolSchema.name);
+```
+
+#### Step 3: Deploy and Test
+
+1. **Deploy to Cloudflare**:
+```bash
+npx wrangler deploy
+```
+
+2. **Test locally** (optional):
+```bash
+pnpm run dev
+```
+
+3. **Reconnect MCP client** to see new tool:
+   - In Claude Desktop/VS Code: disconnect and reconnect to MCP server
+   - Use `/mcp` command to refresh connection
+
+4. **Test the tool**:
+```typescript
+// Example MCP tool call
+mcp__mfaitools__my_new_tool({
+  query: "test query",
+  optional_param: "test value"
+})
+```
+
+### Tool Development Best Practices
+
+#### Input Validation
+- Always validate required parameters
+- Check parameter types and formats
+- Set reasonable limits (e.g., query length < 500 chars)
+- Provide clear error messages
+
+#### Database Operations
+- Use parameterized queries with the `sql` template literal
+- Handle database errors gracefully
+- Log important operations for debugging
+- Consider query performance and limits
+
+#### Output Formatting
+- Return consistent MCP response format
+- Include helpful metadata (counts, statistics)
+- Format results for readability
+- Handle empty results gracefully
+
+#### Error Handling
+- Catch and handle all exceptions
+- Return user-friendly error messages
+- Log detailed errors for debugging
+- Don't expose internal system details
+
+### Tool Categories and Examples
+
+#### Database Query Tools
+- **Text Search**: Full-text search with PostgreSQL
+- **Semantic Search**: Enhanced search with similarity ranking
+- **Data Extraction**: Retrieve specific records or statistics
+
+#### Analysis Tools
+- **Comparison**: Compare results across repositories
+- **Statistics**: Calculate metrics and summaries
+- **Validation**: Check data quality and consistency
+
+#### Utility Tools
+- **Format Conversion**: Transform data between formats
+- **Export**: Generate reports or downloadable content
+- **Integration**: Connect with external APIs or services
+
+### Testing Your New Tool
+
+#### Local Testing
+```bash
+# Start development server
+pnpm run dev
+
+# Test with curl (requires OAuth setup)
+curl -X POST "http://localhost:8787/mcp" \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tools/call", "params": {"name": "my_new_tool", "arguments": {"query": "test"}}}'
+```
+
+#### Production Testing
+```bash
+# Deploy to Cloudflare
+npx wrangler deploy
+
+# Check deployment logs
+npx wrangler tail mcp-mfai-tools --format pretty
+
+# Test via MCP client (Claude Desktop/VS Code)
+# Use the tool through your MCP client interface
+```
+
+### Common Issues and Solutions
+
+#### Tool Not Appearing
+- **Solution**: Reconnect MCP client to refresh tool list
+- **Check**: Ensure tool is properly registered in `toolsList`
+- **Verify**: Check deployment logs for errors
+
+#### Database Connection Errors
+- **Check**: Verify `MODFLOW_AI_MCP_01_CONNECTION_STRING` secret
+- **Test**: Use existing tools to verify database connectivity
+- **Debug**: Check Cloudflare Workers logs
+
+#### Input Validation Failures
+- **Review**: Ensure inputSchema matches tool expectations
+- **Test**: Try with minimal valid inputs first
+- **Debug**: Add console.log statements to trace execution
+
+#### Authentication Issues
+- **Verify**: User is in allowlist (`ALLOWED_GITHUB_USERS` or `ALLOWED_GOOGLE_USERS`)
+- **Check**: OAuth flow completes successfully
+- **Test**: Try with text search tool first to verify auth
+
+### Migration from Reference Implementation
+
+When adapting tools from `.references/`, follow these steps:
+
+1. **Extract core logic** from the reference tool
+2. **Adapt imports** for Cloudflare Workers environment
+3. **Replace external dependencies** (e.g., OpenAI SDK) with compatible alternatives
+4. **Simplify complex features** that require additional infrastructure
+5. **Add fallback mechanisms** for missing capabilities
+6. **Test thoroughly** with various inputs
+
+Example: The semantic search tool uses enhanced text search as a fallback since true embedding-based search requires additional infrastructure not available in the Cloudflare Workers environment.
 
 ## Database Schema
 
-The text search tool queries tables named `{repository}_search` with columns:
+The search tools query the `repository_files` table with columns:
 - `filepath`: Document file path
-- `title`: Document title
-- `summary`: Document summary
+- `repo_name`: Repository name (mf6, pest, etc.)
+- `file_type`: File extension type
 - `content`: Full document content (used for full-text search)
+- `analysis`: JSON metadata containing title, summary, and other structured data
+- `created_at`: Timestamp when record was created
+- `embedding`: Vector embeddings for semantic search (where available)
+
+### Available Repositories
+- **mf6**: MODFLOW 6 documentation
+- **pest**: Parameter Estimation package documentation  
+- **pestpp**: PEST++ enhanced version documentation
+- **pest_hp**: PEST_HP parallel version documentation
+- **mfusg**: MODFLOW-USG (Unstructured Grid) documentation
+- **plproc**: Parameter list processor documentation
+- **gwutils**: Groundwater data utilities documentation
+- **flopy**: Python package for MODFLOW (code repositories)
+- **pyemu**: PyEMU uncertainty analysis (code repositories)
 
 ## Testing
 

@@ -7,7 +7,7 @@ A production-ready MCP (Model Context Protocol) server with OAuth authentication
 - **OAuth Authentication** - GitHub and Google sign-in with beautiful login page
 - **HTTP Transport** - Cloudflare Workers deployment
 - **User Access Control** - Allowlist for GitHub usernames and Google emails
-- **Single Tool** - Just `text_search_repository` for MODFLOW documentation
+- **Multiple Tools** - Text search and semantic search for MODFLOW documentation
 - **Beautiful Login UI** - Glass-morphism design with provider selection
 
 ## Live Deployment
@@ -26,7 +26,8 @@ mcp_mfai_tools/
 ├── utils.ts                   # OAuth utility functions
 ├── workers-oauth-utils.ts     # UI rendering utilities
 ├── tools/
-│   └── text-search.ts         # Text search tool (legacy - moved to mcp-agent.ts)
+│   ├── text-search.ts         # Full-text search with acronym expansion
+│   └── semantic-search.ts     # Enhanced semantic search with similarity ranking
 ├── wrangler.toml              # Cloudflare Workers configuration
 ├── package.json
 ├── deploy.sh                  # Automated deployment script
@@ -174,13 +175,31 @@ const DEFAULT_ALLOWED_EMAILS = [
 ];
 ```
 
-## The Single Tool
+## Available Tools
 
-**text_search_repository**
-- Searches MODFLOW documentation repositories
-- Input: `repository` (string), `query` (string)
-- Returns: Filepath and summary of matching documents
-- Direct SQL query to Neon database
+### 1. text_search_repository
+- **Purpose**: Full-text search across MODFLOW/PEST documentation
+- **Features**: Exact keyword matching with acronym expansion, Boolean operators, wildcards
+- **Input**: `query` (required), `repository` (optional), `file_type` (optional), `limit` (optional), `include_content` (optional)
+- **Best for**: Finding specific functions, classes, variables, or exact terminology
+- **Example**: Search for "WEL" automatically expands to include "Well Package" results
+
+### 2. semantic_search_repository
+- **Purpose**: Semantic search using enhanced text analysis and similarity ranking
+- **Features**: Conceptual similarity search, summary-based evaluation, smart content retrieval
+- **Input**: `query` (required), `repository` (optional), `limit` (optional) 
+- **Best for**: Finding conceptually related content even when exact keywords don't match
+- **Example**: Search for "groundwater flow modeling" finds related documentation about flow packages, discretization, and solver configuration
+- **Note**: Currently uses enhanced text search as fallback (true semantic embeddings require additional infrastructure)
+
+### Supported Repositories
+- **mf6**: MODFLOW 6 documentation
+- **pest**: Parameter Estimation package documentation  
+- **pestpp**: PEST++ enhanced version documentation
+- **pest_hp**: PEST_HP parallel version documentation
+- **mfusg**: MODFLOW-USG (Unstructured Grid) documentation
+- **plproc**: Parameter list processor documentation
+- **gwutils**: Groundwater data utilities documentation
 
 ## Development
 

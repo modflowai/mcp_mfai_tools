@@ -15,6 +15,8 @@ import {
 import { z } from "zod";
 import { neon } from '@neondatabase/serverless';
 import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./tools/text-search.js";
+import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
+import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -150,6 +152,16 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         name: textSearchSchema.name,
         description: textSearchSchema.description,
         inputSchema: textSearchSchema.inputSchema,
+      },
+      {
+        name: semanticSearchSchema.name,
+        description: semanticSearchSchema.description,
+        inputSchema: semanticSearchSchema.inputSchema,
+      },
+      {
+        name: getFileContentSchema.name,
+        description: getFileContentSchema.description,
+        inputSchema: getFileContentSchema.inputSchema,
       }
     ];
     
@@ -166,6 +178,12 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         case 'text_search_repository':
           return await this.handleTextSearchRepository(args);
         
+        case 'semantic_search_repository':
+          return await this.handleSemanticSearchRepository(args);
+        
+        case 'get_file_content':
+          return await this.handleGetFileContent(args);
+        
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -174,7 +192,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tool:", textSearchSchema.name);
+    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name);
     console.log("[MCP] Allowed GitHub users:", Array.from(this.ALLOWED_GITHUB_USERS));
     console.log("[MCP] Allowed Google users:", Array.from(this.ALLOWED_GOOGLE_USERS));
   }
@@ -204,5 +222,13 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   
   private async handleTextSearchRepository(args: any) {
     return await textSearchTool(args, this.sql);
+  }
+  
+  private async handleSemanticSearchRepository(args: any) {
+    return await semanticSearchTool(args, this.sql);
+  }
+  
+  private async handleGetFileContent(args: any) {
+    return await getFileContentTool(args, this.sql);
   }
 }
