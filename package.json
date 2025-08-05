@@ -1,0 +1,26 @@
+{
+  "name": "mfai-minimal-tools",
+  "version": "1.0.0",
+  "description": "Minimal MCP server with HTTP transport",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@cloudflare/kv-asset-handler": "^0.4.0",
+    "@cloudflare/workers-oauth-provider": "^0.0.5",
+    "@cloudflare/workers-types": "^4.20250129.0",
+    "@modelcontextprotocol/sdk": "^1.15.0",
+    "@neondatabase/serverless": "^1.0.1",
+    "agents": "^0.0.93",
+    "hono": "^4.8.12",
+    "octokit": "^5.0.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "wrangler": "^4.28.0"
+  }
+}

@@ -1,0 +1,34 @@
+name = "mcp-mfai-tools"
+main = "index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# KV namespace for OAuth sessions
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "c6668cdb8dfc4f2abf67aab912b3fc27"
+
+# Durable Objects binding
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "MinimalMCP"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MinimalMCP"]
+
+# Environment variables
+[vars]
+DEBUG = "true"
+# Comma-separated lists of allowed users
+ALLOWED_GITHUB_USERS = "modflowai,danilopezmella"
+ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai"
+
+# Secrets to set with wrangler secret put:
+# MODFLOW_AI_MCP_01_CONNECTION_STRING
+# GITHUB_CLIENT_ID (from your new GitHub OAuth app)
+# GITHUB_CLIENT_SECRET (from your new GitHub OAuth app)
+# GOOGLE_CLIENT_ID (from your new Google OAuth app)
+# GOOGLE_CLIENT_SECRET (from your new Google OAuth app)
+# COOKIE_ENCRYPTION_KEY (generate with: openssl rand -base64 32)

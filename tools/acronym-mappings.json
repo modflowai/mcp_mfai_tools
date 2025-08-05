@@ -1,0 +1,297 @@
+{
+  "IMS": {
+    "full": "Iterative Model Solution",
+    "variants": ["iterative model solution", "IMS solver", "IMS package", "numerical solver"],
+    "description": "Numerical solver package that solves the system of linear equations"
+  },
+  "GWF": {
+    "full": "Groundwater Flow",
+    "variants": ["groundwater flow", "GWF model"]
+  },
+  "GWT": {
+    "full": "Groundwater Transport",
+    "variants": ["groundwater transport", "GWT model", "transport model"]
+  },
+  "GWE": {
+    "full": "Groundwater Energy",
+    "variants": ["groundwater energy", "GWE model", "energy transport"]
+  },
+  "CHD": {
+    "full": "Constant Head",
+    "variants": ["constant head", "CHD boundary", "specified head"]
+  },
+  "WEL": {
+    "full": "Well",
+    "variants": ["well package", "pumping well", "injection well"]
+  },
+  "RCH": {
+    "full": "Recharge",
+    "variants": ["recharge package", "areal recharge"]
+  },
+  "EVT": {
+    "full": "Evapotranspiration",
+    "variants": ["evapotranspiration", "EVT package"]
+  },
+  "DRN": {
+    "full": "Drain",
+    "variants": ["drain package", "drainage"]
+  },
+  "RIV": {
+    "full": "River",
+    "variants": ["river package", "river boundary"]
+  },
+  "GHB": {
+    "full": "General Head Boundary",
+    "variants": ["general head boundary", "GHB package"]
+  },
+  "LAK": {
+    "full": "Lake",
+    "variants": ["lake package", "lake simulation"]
+  },
+  "MAW": {
+    "full": "Multi-Aquifer Well",
+    "variants": ["multi-aquifer well", "MAW package"]
+  },
+  "SFR": {
+    "full": "Streamflow Routing",
+    "variants": ["streamflow routing", "SFR package", "stream package"]
+  },
+  "UZF": {
+    "full": "Unsaturated Zone Flow",
+    "variants": ["unsaturated zone flow", "UZF package", "vadose zone"]
+  },
+  "MVR": {
+    "full": "Mover",
+    "variants": ["mover package", "water mover", "MVR transport"]
+  },
+  "STO": {
+    "full": "Storage",
+    "variants": ["storage package", "specific storage", "specific yield"]
+  },
+  "NPF": {
+    "full": "Node Property Flow",
+    "variants": ["node property flow", "NPF package", "hydraulic properties"]
+  },
+  "HFB": {
+    "full": "Horizontal Flow Barrier",
+    "variants": ["horizontal flow barrier", "HFB package", "flow barrier"]
+  },
+  "CSUB": {
+    "full": "Skeletal Storage, Compaction, and Subsidence",
+    "variants": ["subsidence", "compaction", "CSUB package", "land subsidence", "aquifer compaction"],
+    "description": "Simulates land subsidence caused by groundwater extraction and aquifer system compaction"
+  },
+  "IC": {
+    "full": "Initial Conditions",
+    "variants": ["initial conditions", "starting heads", "IC package"]
+  },
+  "OC": {
+    "full": "Output Control",
+    "variants": ["output control", "OC package", "output settings"]
+  },
+  "DIS": {
+    "full": "Discretization",
+    "variants": ["discretization", "DIS package", "model grid", "structured grid"]
+  },
+  "DISV": {
+    "full": "Discretization by Vertices",
+    "variants": ["vertex discretization", "DISV package", "unstructured grid"]
+  },
+  "DISU": {
+    "full": "Unstructured Discretization",
+    "variants": ["unstructured discretization", "DISU package", "unstructured grid"]
+  },
+  "TDIS": {
+    "full": "Temporal Discretization",
+    "variants": ["temporal discretization", "time discretization", "stress periods"]
+  },
+  "ADV": {
+    "full": "Advection",
+    "variants": ["advection package", "advective transport", "solute transport"],
+    "description": "Configures and solves the advection term of the solute transport equation - the process by which dissolved substances are transported by flowing groundwater"
+  },
+  "DSP": {
+    "full": "Dispersion",
+    "variants": ["dispersion package", "hydrodynamic dispersion", "solute spreading", "mechanical dispersion", "molecular diffusion"],
+    "description": "Simulates spreading of solutes due to mechanical dispersion and molecular diffusion in groundwater transport"
+  },
+  "MST": {
+    "full": "Mass Storage and Transfer",
+    "variants": ["mass storage", "MST package", "sorption", "decay", "mobile storage", "mass transfer"],
+    "description": "Simulates sorption, decay, and storage of solutes in groundwater transport"
+  },
+  "IST": {
+    "full": "Immobile Storage and Transfer",
+    "variants": ["immobile storage", "IST package", "dual porosity"]
+  },
+  "SSM": {
+    "full": "Source/Sink Mixing",
+    "variants": ["source sink mixing", "SSM package", "concentration boundaries"]
+  },
+  "FMI": {
+    "full": "Flow Model Interface",
+    "variants": ["flow model interface", "FMI package", "flow-transport coupling", "GWF-GWT coupling", "flow transport link"],
+    "description": "Acts as a connector that links groundwater flow model with transport model, passing flow information to transport calculations"
+  },
+  "PEST": {
+    "full": "Parameter Estimation",
+    "variants": ["parameter estimation", "PEST calibration", "model calibration"]
+  },
+  "PESTPP": {
+    "full": "PEST++",
+    "variants": ["PEST++", "PEST plus plus", "enhanced parameter estimation"]
+  },
+  "PHI": {
+    "full": "Objective Function",
+    "variants": ["objective function", "phi", "measurement objective function"]
+  },
+  "SVD": {
+    "full": "Singular Value Decomposition",
+    "variants": ["singular value decomposition", "SVD assist", "parameter reduction"]
+  },
+  "NOPTMAX": {
+    "full": "Maximum Optimization Iterations",
+    "variants": ["maximum iterations", "optimization limit"]
+  },
+  "PSO": {
+    "full": "Particle Swarm Optimization",
+    "variants": ["particle swarm", "PSO algorithm", "global optimization"]
+  },
+  "SCE": {
+    "full": "Shuffled Complex Evolution",
+    "variants": ["shuffled complex evolution", "SCE-UA", "global optimization"]
+  },
+  "IES": {
+    "full": "Iterative Ensemble Smoother",
+    "variants": ["iterative ensemble smoother", "IES algorithm", "ensemble methods"]
+  },
+  "GSA": {
+    "full": "Global Sensitivity Analysis",
+    "variants": ["sensitivity analysis", "global sensitivity", "Morris method", "Sobol"]
+  },
+  "ZPT": {
+    "full": "Zone Property Table",
+    "variants": ["zone property", "parameter zones", "pilot points", "ZPT"],
+    "description": "Defines parameter zones for spatially variable properties in parameter estimation workflows"
+  },
+  "API": {
+    "full": "Application Programming Interface",
+    "variants": ["API package", "external coupling", "MODFLOW API", "in-memory coupling", "dynamic control"],
+    "description": "Enables external programs to interact with MODFLOW during simulation, allowing in-memory coupling and dynamic control of model parameters"
+  },
+  "BAS": {
+    "full": "Basic Package",
+    "variants": ["basic package", "BAS package", "model setup", "IBOUND", "starting heads"],
+    "description": "Defines fundamental model information including grid dimensions, active/inactive cells (IBOUND), initial conditions, and temporal control"
+  },
+  "BCF": {
+    "full": "Block-Centered Flow",
+    "variants": ["BCF package", "flow properties", "hydraulic properties", "BCF6", "hydraulic conductivity", "transmissivity"],
+    "description": "Defines hydraulic properties of aquifer layers and calculates hydraulic conductance between adjacent model cells"
+  },
+  "LPF": {
+    "full": "Layer-Property Flow",
+    "variants": ["LPF package", "layer properties", "hydraulic conductivity", "flow properties"],
+    "description": "Defines aquifer properties for each model layer including hydraulic conductivity, storage, and vertical conductance"
+  },
+  "PCG": {
+    "full": "Preconditioned Conjugate Gradient",
+    "variants": ["PCG solver", "linear solver", "matrix solver", "conjugate gradient"],
+    "description": "Iterative solver for solving the system of linear equations in groundwater flow models"
+  },
+  "SMS": {
+    "full": "Sparse Matrix Solver",
+    "variants": ["SMS package", "solver package", "linear solver", "MODFLOW-USG solver"],
+    "description": "Sparse matrix solver for MODFLOW 6 and MODFLOW-USG, providing efficient solution of large systems of equations"
+  },
+  "NWT": {
+    "full": "Newton-Raphson",
+    "variants": ["Newton solver", "NWT solver", "nonlinear solver", "MODFLOW-NWT"],
+    "description": "Newton-Raphson solver for unconfined groundwater flow, handling non-linearities in water table conditions"
+  },
+  "NAM": {
+    "full": "Name File",
+    "variants": ["name file", "NAM file", "model configuration", "master control file"],
+    "description": "Master control file that lists all input files for a MODFLOW simulation and defines which packages are active"
+  },
+  "OBS": {
+    "full": "Observations",
+    "variants": ["observation package", "OBS package", "model observations", "observation utility"],
+    "description": "Defines observation locations and types for model output, allowing extraction of specific values during simulation"
+  },
+  "HOB": {
+    "full": "Head Observations",
+    "variants": ["head observations", "HOB package", "water level observations", "calibration targets"],
+    "description": "Defines head observation points for model calibration, comparing simulated heads with field measurements"
+  },
+  "GAGE": {
+    "full": "Gage Package",
+    "variants": ["gage package", "stream gages", "flow observations", "streamflow measurements"],
+    "description": "Defines stream flow observation points for comparing simulated and measured streamflows"
+  },
+  "HYD": {
+    "full": "HYDMOD",
+    "variants": ["HYDMOD package", "hydrograph output", "time series output", "HYD package"],
+    "description": "Outputs time series data at specified locations for model calibration and evaluation"
+  },
+  "LMT": {
+    "full": "Link-MT3DMS",
+    "variants": ["LMT package", "flow-transport link", "MT3DMS coupling", "transport linkage"],
+    "description": "Links MODFLOW with MT3DMS transport model by saving flow information for transport simulations"
+  },
+  "BTN": {
+    "full": "Basic Transport",
+    "variants": ["BTN package", "basic transport", "MT3DMS setup", "transport control"],
+    "description": "Foundational package for MT3DMS transport model defining grid, time control, initial concentrations, and porosity"
+  },
+  "GCG": {
+    "full": "Generalized Conjugate Gradient",
+    "variants": ["GCG solver", "transport solver", "MT3DMS solver", "conjugate gradient"],
+    "description": "Iterative solver for MT3DMS transport equations, solving the advection-dispersion equation"
+  },
+  "BUY": {
+    "full": "Buoyancy",
+    "variants": ["buoyancy package", "variable density", "density-driven flow", "saltwater intrusion"],
+    "description": "Simulates variable-density groundwater flow where fluid density variations affect flow patterns"
+  },
+  "GNC": {
+    "full": "Ghost Node Correction",
+    "variants": ["ghost node", "GNC package", "numerical correction", "grid refinement"],
+    "description": "Improves accuracy of groundwater flow calculations at interfaces between different grid resolutions"
+  },
+  "UPW": {
+    "full": "Upstream Weighting",
+    "variants": ["UPW package", "upstream weighting", "flow properties", "hydraulic properties"],
+    "description": "Core flow package defining hydraulic properties with upstream weighting for better handling of drying/rewetting"
+  },
+  "CLN": {
+    "full": "Connected Linear Network",
+    "variants": ["CLN package", "linear network", "conduit flow", "karst features", "mine tunnels"],
+    "description": "Simulates 1D/2D flow features like karst conduits, fractures, or mine tunnels within 3D groundwater models"
+  },
+  "ATS": {
+    "full": "Adaptive Time Stepping",
+    "variants": ["ATS package", "adaptive time step", "time step control", "dynamic time stepping"],
+    "description": "Automatically adjusts simulation time step size based on convergence behavior to improve stability and efficiency"
+  },
+  "VSC": {
+    "full": "Viscosity",
+    "variants": ["viscosity package", "variable viscosity", "temperature-dependent viscosity", "density-dependent viscosity"],
+    "description": "Simulates variable fluid viscosity effects on groundwater flow"
+  },
+  "SEAWAT": {
+    "full": "Variable-Density Groundwater Flow and Transport",
+    "variants": ["variable density", "density-driven flow", "saltwater intrusion", "henry problem", "coastal aquifer"],
+    "description": "Coupled flow and transport model for variable-density groundwater systems"
+  },
+  "SWI": {
+    "full": "Saltwater Intrusion",
+    "variants": ["saltwater intrusion", "SWI package", "seawater intrusion", "coastal aquifer", "freshwater-saltwater interface"],
+    "description": "Simulates regional seawater intrusion in coastal aquifer systems"
+  },
+  "SWI2": {
+    "full": "Seawater Intrusion Package Version 2",
+    "variants": ["SWI2 package", "saltwater intrusion", "density interfaces", "stratified flow"],
+    "description": "Advanced package for simulating vertically integrated variable-density flow"
+  }
+}
