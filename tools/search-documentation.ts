@@ -258,13 +258,16 @@ async function searchDocumentationWithEmbeddings(
 
 export async function searchDocumentation(args: any, sql: NeonQueryFunction<false, false>) {
   try {
+    // Handle both direct args and potentially wrapped args
+    const actualArgs = args || {};
+    
     const { 
       query, 
       search_type = 'auto', 
       repository, 
       file_type,
       limit = 10 
-    } = args;
+    } = actualArgs;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Query parameter is required and cannot be empty');

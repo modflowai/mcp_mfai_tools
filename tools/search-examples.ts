@@ -232,7 +232,10 @@ async function searchWorkflowsWithEmbeddings(query: string, sql: NeonQueryFuncti
 
 export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
   try {
-    const { query, search_type = 'auto', repository, complexity, limit = 10 } = args;
+    // Handle both direct args and potentially wrapped args
+    const actualArgs = args || {};
+    
+    const { query, search_type = 'auto', repository, complexity, limit = 10 } = actualArgs;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Query parameter is required and cannot be empty');

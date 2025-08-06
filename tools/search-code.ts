@@ -278,6 +278,9 @@ async function searchModulesWithEmbeddings(
 
 export async function searchCode(args: any, sql: NeonQueryFunction<false, false>) {
   try {
+    // Handle both direct args and potentially wrapped args
+    const actualArgs = args || {};
+    
     const { 
       query, 
       search_type = 'auto', 
@@ -286,7 +289,7 @@ export async function searchCode(args: any, sql: NeonQueryFunction<false, false>
       model_family, 
       category, 
       limit = 10 
-    } = args;
+    } = actualArgs;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Query parameter is required and cannot be empty');
