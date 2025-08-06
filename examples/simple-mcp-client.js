@@ -7,7 +7,7 @@
 
 import http from 'http';
 
-const MCP_SERVER_URL = 'http://localhost:42717/mcp';
+const MCP_SERVER_URL = 'http://localhost:8787/mcp';
 
 // Simple MCP protocol implementation
 class SimpleMCPClient {
@@ -215,7 +215,7 @@ async function checkServer() {
     console.log('   cd /path/to/mcp_mfai_tools');
     console.log('   pnpm run dev');
     console.log('');
-    console.log('The server should be available at: http://localhost:42717');
+    console.log('The server should be available at: http://localhost:8787');
     process.exit(1);
   }
 

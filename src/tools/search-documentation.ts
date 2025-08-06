@@ -9,13 +9,13 @@ import acronymMappings from './acronym-mappings.json';
 
 export const searchDocumentationSchema = {
   name: "search_documentation",
-  description: "Search for theory, mathematical background, conceptual explanations, and reference material across MODFLOW/PEST documentation repositories. Use when user wants: mathematical theory, conceptual explanations, reference guides, scientific principles, theoretical foundations, or technical explanations. Searches comprehensive documentation including MODFLOW 6, PEST, PEST++, MODFLOW-USG guides. Available repositories: mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils, flopy, pyemu.",
+  description: "Search for theory, mathematical background, conceptual explanations, and reference material across MODFLOW/PEST documentation repositories. Use when user wants: mathematical theory, conceptual explanations, reference guides, scientific principles, theoretical foundations, or technical explanations. Searches comprehensive documentation including MODFLOW 6, PEST, PEST++, MODFLOW-USG guides. Available repositories: mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils, flopy, pyemu. IMPORTANT: Query limited to 3 words maximum because text search performs significantly better with focused, specific terms rather than long phrases. Use the most important keywords only.",
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'Search query for documentation and theoretical content',
+        description: 'Search query for documentation (maximum 3 words)',
       },
       repository: {
         type: 'string',
@@ -23,7 +23,7 @@ export const searchDocumentationSchema = {
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of results (1-50, default: 10)',
+        description: 'Maximum number of results (1-3, default: 1)',
       },
     },
     required: ['query'],
@@ -289,20 +289,43 @@ export async function searchDocumentation(args: any, sql: NeonQueryFunction<fals
       search_type = 'auto', 
       repository, 
       file_type,
-      limit = 10 
+      limit = 1  // Default to 1 result
     } = actualArgs;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Query parameter is required and cannot be empty');
     }
 
-    if (limit && (limit < 1 || limit > 50)) {
-      throw new Error('Limit must be between 1 and 50');
+    // Limit query to maximum 3 words
+    const words = query.trim().split(/\s+/);
+    if (words.length > 3) {
+      throw new Error('Query must contain 3 words or fewer for documentation search. Use more specific terms.');
     }
 
+    if (limit && (limit < 1 || limit > 3)) {
+      throw new Error('Limit must be between 1 and 3 for documentation search');
+    }
+
+    // Detect and expand acronyms
+    const queryWords = query.trim().split(/\s+/);
+    const detectedAcronyms: { [key: string]: string } = {};
+    const expandedTerms: string[] = [];
+    
+    for (const word of queryWords) {
+      const upperWord = word.toUpperCase();
+      expandedTerms.push(word);
+      if ((acronymMappings as any)[upperWord]) {
+        const mapping = (acronymMappings as any)[upperWord];
+        detectedAcronyms[upperWord] = mapping.full;
+        // Add the full form for search expansion
+        expandedTerms.push(mapping.full.toLowerCase());
+      }
+    }
+    
+    const expandedQuery = expandedTerms.join(' ');
     const method = selectSearchMethod(query, search_type);
     
-    console.log(`[SEARCH DOCUMENTATION] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, FileType: ${file_type || 'any'}`);
+    console.log(`[SEARCH DOCUMENTATION] Query: "${query}", Expanded: "${expandedQuery}", Method: ${method}, Repository: ${repository || 'all'}, FileType: ${file_type || 'any'}`);
 
     let results: any[] = [];
     
@@ -336,7 +359,11 @@ export async function searchDocumentation(args: any, sql: NeonQueryFunction<fals
         method_used: method,
         total_results: results.length,
         coverage: 'documentation',
-        query_analyzed: query
+        query_analyzed: query,
+        ...(Object.keys(detectedAcronyms).length > 0 && { 
+          acronyms_detected: detectedAcronyms,
+          query_expanded: expandedQuery
+        })
       },
       recommendations
     };

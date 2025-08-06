@@ -29,11 +29,11 @@ src/
 ├── tools/                     # MCP tool implementations
 │   ├── search-examples.ts    # Tutorial and workflow search
 │   ├── search-code.ts        # API and module search
-│   ├── search-documentation.ts # Theory and reference search
+│   ├── search-documentation.ts # Theory and reference search (3-word limit)
 │   ├── get-file-content.ts   # Direct file retrieval
 │   ├── text-search.ts        # [DEPRECATED] Full-text search
 │   ├── semantic-search.ts    # [DEPRECATED] Semantic search
-│   └── acronym-mappings.json # Acronym expansions
+│   └── acronym-mappings.json # Centralized acronym expansions
 └── utils/                     # Utility functions
     ├── utils.ts              # OAuth utilities
     └── workers-oauth-utils.ts # UI rendering
@@ -138,8 +138,11 @@ The server provides four specialized tools for MODFLOW/PEST documentation and co
 
 3. **search_documentation** - Theory and reference search
    - Searches comprehensive documentation repositories
+   - **LIMITED TO 3 WORDS MAXIMUM** for optimal text search performance
+   - Default: 1 result (max 3 results allowed)
    - Returns mathematical theory and conceptual explanations
    - Includes key concepts and scientific principles
+   - Automatically expands detected acronyms
    - Best for: Understanding concepts, mathematical formulations, reference material
 
 ### Utility Tool
@@ -148,6 +151,13 @@ The server provides four specialized tools for MODFLOW/PEST documentation and co
    - Returns full source code or documentation with metadata
    - Handles all three table types: repository_files, workflows, and modules
    - Use after search tools to examine specific files in detail
+
+### Search Features
+All search tools include:
+- **Acronym Detection**: Shows detected acronyms and their expansions in search results
+- **Smart Method Selection**: Automatically chooses between text, semantic, or hybrid search
+- **GitHub URLs**: Returns direct GitHub links for code files (flopy and pyemu repositories)
+- **Search Recommendations**: Suggests alternative tools based on query type
 
 ### Legacy Tools (Deprecated)
 The Phase 1 tools (`text_search_repository` and `semantic_search_repository`) have been deprecated and replaced by the more focused Phase 2 tools above.

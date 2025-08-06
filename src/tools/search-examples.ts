@@ -5,6 +5,7 @@
  */
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
+import acronymMappings from './acronym-mappings.json';
 
 export const searchExamplesSchema = {
   name: "search_examples",
@@ -32,6 +33,7 @@ export const searchExamplesSchema = {
 interface ExampleResult {
   filepath: string;
   repo_name: string;
+  github_url?: string;
   title?: string;
   summary?: string;
   complexity?: string;
@@ -53,6 +55,9 @@ interface ExampleSearchResponse {
     total_results: number;
     coverage: 'examples';
     query_analyzed: string;
+    acronyms_detected?: {
+      [key: string]: string;
+    };
   };
   recommendations?: {
     try_also?: string;
@@ -80,7 +85,10 @@ function selectSearchMethod(query: string, searchType: string): 'text' | 'semant
 function generateRecommendations(query: string, results: ExampleResult[], method: string): ExampleSearchResponse['recommendations'] {
   const hasCodePackages = results.some(r => r.packages_used?.length);
   const hasComplexExamples = results.some(r => r.complexity === 'advanced');
-  const isSpecificPackage = /\b(wel|riv|ghb|maw|uzf|sfr|lak|drn|evt|rch)\b/i.test(query);
+  
+  // Check if query contains any known package acronyms
+  const queryWords = query.toLowerCase().split(/\s+/);
+  const isSpecificPackage = queryWords.some(word => word.toUpperCase() in acronymMappings);
   
   if (isSpecificPackage && hasCodePackages && method !== 'hybrid') {
     return {
@@ -118,6 +126,12 @@ async function searchWorkflowsWithText(query: string, sql: NeonQueryFunction<fal
       SELECT 
         fw.${fileColumn} as filepath,
         '${repo}' as repo_name,
+        CASE 
+          WHEN '${repo}' = 'flopy' AND fw.${fileColumn} LIKE 'scripts/ex-%' THEN 'https://github.com/MODFLOW-ORG/modflow6-examples/blob/develop/' || fw.${fileColumn}
+          WHEN '${repo}' = 'flopy' THEN 'https://github.com/modflowpy/flopy/blob/develop/' || fw.${fileColumn}
+          WHEN '${repo}' = 'pyemu' THEN 'https://github.com/pypest/pyemu/blob/develop/' || fw.${fileColumn}
+          ELSE NULL
+        END as github_url,
         fw.title as title,
         fw.description as summary,
         fw.complexity,
@@ -187,6 +201,17 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       throw new Error('Limit must be between 1 and 50');
     }
 
+    // Detect acronyms in the query
+    const queryWords = query.toLowerCase().split(/\s+/);
+    const detectedAcronyms: { [key: string]: string } = {};
+    
+    for (const word of queryWords) {
+      const upperWord = word.toUpperCase();
+      if (upperWord in acronymMappings) {
+        detectedAcronyms[upperWord] = (acronymMappings as any)[upperWord].full;
+      }
+    }
+
     const method = selectSearchMethod(query, search_type);
     
     console.log(`[SEARCH EXAMPLES] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, Complexity: ${complexity || 'any'}`);
@@ -225,7 +250,8 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
         method_used: method,
         total_results: allResults.length,
         coverage: 'examples',
-        query_analyzed: query
+        query_analyzed: query,
+        ...(Object.keys(detectedAcronyms).length > 0 && { acronyms_detected: detectedAcronyms })
       },
       recommendations
     };

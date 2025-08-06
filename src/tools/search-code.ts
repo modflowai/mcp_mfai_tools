@@ -5,6 +5,7 @@
  */
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
+import acronymMappings from './acronym-mappings.json';
 
 export const searchCodeSchema = {
   name: "search_code",
@@ -32,6 +33,7 @@ export const searchCodeSchema = {
 interface CodeResult {
   filepath: string;
   repo_name: string;
+  github_url?: string;
   title?: string;
   summary?: string;
   package_code?: string;
@@ -53,6 +55,9 @@ interface CodeSearchResponse {
     total_results: number;
     coverage: 'code';
     query_analyzed: string;
+    acronyms_detected?: {
+      [key: string]: string;
+    };
   };
   recommendations?: {
     try_also?: string;
@@ -68,11 +73,14 @@ function selectSearchMethod(query: string, searchType: string): 'text' | 'semant
   
   // Auto-selection based on query characteristics
   const hasExactAPI = /\b(\.|\(|\)|def |class |import |from )\b/.test(query);
-  const hasPackageName = /\b(wel|riv|ghb|maw|uzf|sfr|lak|drn|evt|rch|bcf|lpf|hfb)\b/i.test(query);
   const hasQuotes = /["'].*["']/.test(query);
   const isConceptual = /\b(similar|like|related|concept|approach)\b/i.test(query);
   
-  if (hasExactAPI || hasQuotes || hasPackageName) return 'text';
+  // Check if query contains any known acronyms (which would benefit from text search)
+  const queryWords = query.toLowerCase().split(/\s+/);
+  const hasKnownAcronym = queryWords.some(word => word.toUpperCase() in acronymMappings);
+  
+  if (hasExactAPI || hasQuotes || hasKnownAcronym) return 'text';
   if (isConceptual) return 'semantic';
   return 'hybrid';
 }
@@ -144,6 +152,10 @@ async function searchModulesWithText(
         SELECT 
           fm.relative_path as filepath,
           '${repo}' as repo_name,
+          CASE 
+            WHEN '${repo}' = 'flopy' THEN 'https://github.com/modflowpy/flopy/blob/develop/' || fm.relative_path
+            ELSE NULL
+          END as github_url,
           fm.semantic_purpose as title,
           fm.semantic_purpose as summary,
           fm.package_code,
@@ -185,6 +197,10 @@ async function searchModulesWithText(
         SELECT 
           fm.relative_path as filepath,
           '${repo}' as repo_name,
+          CASE 
+            WHEN '${repo}' = 'pyemu' THEN 'https://github.com/pypest/pyemu/blob/develop/' || fm.relative_path
+            ELSE NULL
+          END as github_url,
           fm.semantic_purpose as title,
           fm.semantic_purpose as summary,
           NULL as package_code,
@@ -312,6 +328,17 @@ export async function searchCode(args: any, sql: NeonQueryFunction<false, false>
       throw new Error('Limit must be between 1 and 50');
     }
 
+    // Detect acronyms in the query
+    const queryWords = query.toLowerCase().split(/\s+/);
+    const detectedAcronyms: { [key: string]: string } = {};
+    
+    for (const word of queryWords) {
+      const upperWord = word.toUpperCase();
+      if (upperWord in acronymMappings) {
+        detectedAcronyms[upperWord] = (acronymMappings as any)[upperWord].full;
+      }
+    }
+
     const method = selectSearchMethod(query, search_type);
     const moduleLimit = Math.floor(limit * 0.85); // 85% modules
     const docLimit = Math.ceil(limit * 0.15); // 15% documentation
@@ -358,7 +385,8 @@ export async function searchCode(args: any, sql: NeonQueryFunction<false, false>
         method_used: method,
         total_results: allResults.length,
         coverage: 'code',
-        query_analyzed: query
+        query_analyzed: query,
+        ...(Object.keys(detectedAcronyms).length > 0 && { acronyms_detected: detectedAcronyms })
       },
       recommendations
     };

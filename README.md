@@ -220,10 +220,11 @@ const DEFAULT_ALLOWED_EMAILS = [
 #### 3. search_documentation
 - **Purpose**: Search for theory, mathematical background, and conceptual explanations
 - **Features**: Returns key concepts, scientific principles, reference guides
-- **Input**: `query` (required), `repository` (optional), `limit` (optional: 1-50)
+- **Input**: `query` (required, MAX 3 WORDS), `repository` (optional), `limit` (optional: 1-3, default: 1)
 - **Best for**: Finding theoretical foundations, mathematical formulations, technical explanations
-- **Example**: Search for "hydraulic conductivity theory" returns conceptual documentation
+- **Example**: Search for "hydraulic conductivity" returns conceptual documentation
 - **Tables**: Searches repository_files table across all documentation repositories
+- **Important**: Limited to 3 words for optimal text search performance; automatically expands detected acronyms
 
 ### Utility Tool
 
@@ -391,7 +392,17 @@ See [CLAUDE.md](./CLAUDE.md) for comprehensive documentation on adding tools.
 
 ## Recent Changes
 
-### Phase 2 Implementation (Current)
+### Latest Improvements
+- **GitHub URLs**: All code search results now include direct GitHub links to source files
+  - FloPy modules: `github.com/modflowpy/flopy/blob/develop/...`
+  - PyEMU modules: `github.com/pypest/pyemu/blob/develop/...`
+  - MODFLOW 6 examples: `github.com/MODFLOW-ORG/modflow6-examples/blob/develop/scripts/...`
+- **Acronym Detection**: Search results show detected acronyms and their expansions
+- **Centralized Acronym Management**: Removed hardcoded package lists, using `acronym-mappings.json`
+- **Optimized Documentation Search**: Limited to 3 words for better text search performance
+- **Smart Search Method Selection**: Tools automatically choose text, semantic, or hybrid search
+
+### Phase 2 Implementation
 - **New specialized tools**: `search_examples`, `search_code`, `search_documentation` for better focused searches
 - **Deprecated legacy tools**: `text_search_repository` and `semantic_search_repository` (commented out)
 - **Fixed database truncation**: Files now retrieved in full (previously truncated at 5000 chars)
