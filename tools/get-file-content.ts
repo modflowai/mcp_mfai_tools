@@ -17,27 +17,32 @@ interface FileAnalysis {
 export const getFileContentSchema = {
   name: "get_file_content",
   description: `
-    Get complete content of a specific file by its exact path from MODFLOW/PEST repositories.
+    **GET COMPLETE FILE CONTENT** - Retrieve the full content of a specific file
     
-    This tool retrieves the full content of a specific file when you know the exact filepath.
-    Best for accessing complete source code, documentation files, or configuration files.
+    🎯 **When to use this tool:**
+    - You found a file via search and want to see the complete content
+    - Need to examine full source code or documentation  
+    - Want to analyze implementation details or examples
+    - Follow up after search results to get the complete picture
     
-    Available repositories:
-    - flopy: Python package for MODFLOW (includes modules and workflows)
-    - mfusg: MODFLOW-USG (Unstructured Grid) documentation
-    - pest: Parameter Estimation package documentation
-    - pestpp: PEST++ enhanced version documentation
-    - pest_hp: PEST_HP parallel version documentation
-    - pyemu: PyEMU uncertainty analysis (includes modules and workflows)
-    - mf6: MODFLOW 6 documentation
-    - plproc: Parameter list processor documentation
-    - gwutils: Groundwater data utilities documentation
+    📝 **Example workflow:**
+    1. Search: semantic_search("well package") → finds flopy/modflow/mfwel.py
+    2. Get details: get_file_content(repository="flopy", filepath="flopy/modflow/mfwel.py")  
+    3. Result: Complete Python source code + rich metadata
     
-    Use this tool when you:
-    - Have an exact file path from search results
-    - Need to view complete file contents
-    - Want to examine source code or configuration details
-    - Need to analyze file structure and implementation
+    📄 **What you get:**
+    - **Full file content** (source code, documentation, examples)
+    - **Rich metadata**: Title, summary, technical analysis, key concepts
+    - **File statistics**: Size, creation date, type classification
+    - **Structured overview** of complex files for easy understanding
+    
+    📚 **Available content:**
+    - **FloPy/PyEMU**: Complete Python module source code with docstrings
+    - **MODFLOW 6**: Theory guides, input instructions, examples  
+    - **PEST/PEST++**: Parameter estimation documentation and guides
+    - **MODFLOW-USG**: Unstructured grid documentation and workflows
+    
+    💡 **Pro tip**: Use this after search tools to dive deep into specific files. Perfect for understanding implementation details.
   `,
   inputSchema: {
     type: 'object',

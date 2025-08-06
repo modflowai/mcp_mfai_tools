@@ -31,33 +31,33 @@ interface SearchResultItem {
 export const textSearchSchema = {
   name: "text_search_repository",
   description: `
-    Perform full-text search across MODFLOW/PEST repository files using PostgreSQL's powerful search capabilities.
-    This tool finds exact keyword matches and uses advanced text ranking for relevance.
-    Best for finding specific functions, classes, variables, or exact terminology.
+    **EXACT KEYWORD SEARCH** - Find documents containing specific terms and phrases
     
-    Available repositories:
+    🎯 **When to use this tool:**
+    - You know the exact terminology (e.g., "WEL package", "boundary conditions")  
+    - Looking for specific function names, parameters, or technical terms
+    - Want to see ALL mentions of a keyword across repositories
+    - Need precise matches with highlighted snippets
     
-    Documentation repositories:
-    - mfusg: MODFLOW-USG (Unstructured Grid) documentation
-    - pest: Parameter Estimation package documentation  
-    - pestpp: PEST++ enhanced version documentation
-    - pest_hp: PEST_HP parallel version documentation
-    - mf6: MODFLOW 6 documentation
-    - plproc: Parameter list processor documentation
-    - gwutils: Groundwater data utilities documentation
+    📝 **Example queries:**
+    - "hydraulic conductivity" → finds exact mentions in docs and code
+    - "WEL package" → finds all Well package implementations  
+    - "parameter estimation" → finds exact phrase matches
+    - "BCF OR LPF" → finds either Block-Centered Flow or Layer Property Flow
     
-    Code module repositories (with rich metadata):
-    - flopy: FloPy Python modules with package codes, model families, user scenarios
-    - pyemu: PyEMU Python modules with categories, PEST integration, use cases
+    🔍 **Search capabilities:**
+    - Exact keyword matching with smart ranking
+    - Phrase search with quotes: "steady state"
+    - Boolean operators: AND, OR, NOT  
+    - Wildcards: "conduct*" finds conductivity, conductance, etc.
+    - Acronym expansion: "GHB" also finds "General Head Boundary"
     
-    Search features:
-    - Exact keyword matching with acronym expansion
-    - Multi-word phrase search
-    - Boolean operators (AND, OR, NOT)
-    - Wildcard search with * and ?
-    - Case-insensitive search
-    - For FloPy/PyEMU: searches modules with full source code and metadata
-    - For other repos: searches documentation with content
+    📚 **What this searches:**
+    - **Documentation**: MODFLOW 6, PEST, MODFLOW-USG guides and examples
+    - **FloPy Code**: Python modules with package info (WEL, RIV, DRN, etc.)
+    - **PyEMU Code**: Uncertainty analysis modules with PEST integration
+    
+    💡 **Pro tip**: Start here if you know the exact term. Use semantic_search if you need conceptual matches.
   `,
   inputSchema: {
     type: 'object',

@@ -30,42 +30,36 @@ interface SemanticSearchResultItem {
 export const semanticSearchSchema = {
   name: "semantic_search_repository",
   description: `
-    Perform semantic search across MODFLOW/PEST repository files using AI embeddings.
-    This tool finds conceptually similar content even if exact keywords don't match.
+    **AI-POWERED CONCEPTUAL SEARCH** - Find content by meaning and concepts, not just keywords
     
-    SMART RETRIEVAL APPROACH:
-    1. First retrieves document summaries and metadata
-    2. Evaluates if summaries contain sufficient information
-    3. Only retrieves full file content when necessary
+    🎯 **When to use this tool:**
+    - You're exploring a topic and don't know exact terms (e.g., "pumping water from aquifer")
+    - Want conceptually similar content even with different wording
+    - Looking for examples or implementations of an approach
+    - Research phase: "What tools exist for X?" 
     
-    Available repositories:
+    📝 **Example queries:**
+    - "pumping water" → finds WEL, MNW, injection wells (different terms, same concept)
+    - "uncertain parameters" → finds calibration, PEST, ensemble methods
+    - "groundwater boundaries" → finds RIV, GHB, DRN packages (related concepts)
+    - "model calibration" → finds parameter estimation across FloPy/PyEMU
     
-    Documentation repositories:
-    - mfusg: MODFLOW-USG (Unstructured Grid) documentation
-    - pest: Parameter Estimation package documentation  
-    - pestpp: PEST++ enhanced version documentation
-    - pest_hp: PEST_HP parallel version documentation
-    - mf6: MODFLOW 6 documentation
-    - plproc: Parameter list processor documentation
-    - gwutils: Groundwater data utilities documentation
+    🤖 **How it works:**
+    - Uses OpenAI to understand query meaning 
+    - Finds content with similar concepts (not just matching words)
+    - Ranks by conceptual similarity (0-1 score)
+    - Returns rich metadata: use cases, related concepts, examples
     
-    Code module repositories (with rich metadata):
-    - flopy: FloPy Python modules with package codes, model families, user scenarios
-    - pyemu: PyEMU Python modules with categories, PEST integration, use cases
+    📚 **What this searches:**
+    - **MODFLOW Documentation**: Examples, theory, package descriptions
+    - **FloPy Modules**: Organized by model family (MODFLOW 6, MODFLOW-2005, USG)
+    - **PyEMU Modules**: Uncertainty analysis tools with PEST workflow integration
     
-    Search features:
-    - Semantic similarity using AI embeddings
-    - Summary-based evaluation (saves tokens)
-    - Smart content retrieval decision
-    - For FloPy/PyEMU: searches both modules and workflows with full source code
-    - For other repos: searches documentation with metadata
+    🎛️ **Filter options:**
+    - FloPy: Filter by package_code (WEL, RIV) or model_family (mf6, modflow)  
+    - PyEMU: Filter by category (core, utils) for focused results
     
-    Use this when you need to find:
-    - Conceptually related code or documentation
-    - Similar implementations across repositories
-    - Content about a topic using different terminology
-    - Examples of specific patterns or approaches
-    - General information that might be in summaries
+    💡 **Pro tip**: Start here for exploration and research. Use text_search when you know exact terms.
   `,
   inputSchema: {
     type: 'object',
