@@ -35,7 +35,7 @@ set_secret() {
         return
     fi
     
-    echo "$value" | npx wrangler secret put "$secret_name" --name mcp-mfai-tools > /dev/null 2>&1
+    echo "$value" | npx wrangler secret put "$secret_name" --name mcp-mfai-tools --config ../config/wrangler.toml > /dev/null 2>&1
     
     if [ $? -eq 0 ]; then
         echo "✅"
@@ -90,5 +90,5 @@ echo ""
 echo "  2. Update Google OAuth redirect URI to:"
 echo "     https://mcp-mfai-tools.little-grass-273a.workers.dev/callback"
 echo ""
-echo "💡 To view current secrets: npx wrangler secret list"
+echo "💡 To view current secrets: npx wrangler secret list --config config/wrangler.toml"
 echo "💡 To deploy changes: npm run deploy"

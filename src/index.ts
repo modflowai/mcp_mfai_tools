@@ -5,7 +5,7 @@
  */
 
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
-import MultiProviderHandler from "./multi-provider-handler";
+import MultiProviderHandler from "./handlers/multi-provider-handler";
 import MinimalMCP from "./mcp-agent";
 
 // Export the Durable Object class

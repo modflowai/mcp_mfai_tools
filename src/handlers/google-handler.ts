@@ -1,6 +1,6 @@
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
-import { fetchUpstreamAuthToken, Props } from "./utils";
+import { fetchUpstreamAuthToken, Props } from "../utils/utils";
 
 interface Env {
   GOOGLE_CLIENT_ID: string;

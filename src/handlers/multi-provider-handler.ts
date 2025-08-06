@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { Octokit } from "octokit";
-import { renderProviderSelectionDialog, parseRedirectApproval, clientIdAlreadyApproved } from "./workers-oauth-utils";
-import { getUpstreamAuthorizeUrl, fetchUpstreamAuthToken, Props } from "./utils";
+import { renderProviderSelectionDialog, parseRedirectApproval, clientIdAlreadyApproved } from "../utils/workers-oauth-utils";
+import { getUpstreamAuthorizeUrl, fetchUpstreamAuthToken, Props } from "../utils/utils";
 import { getGoogleAuthUrl } from "./google-handler";
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 

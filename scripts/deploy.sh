@@ -34,7 +34,7 @@ fi
 # Check if KV namespace exists
 echo ""
 echo "🔍 Checking KV namespace..."
-KV_ID=$(grep "^id = " wrangler.toml | grep -v "#" | head -1 | cut -d'"' -f2)
+KV_ID=$(grep "^id = " config/wrangler.toml | grep -v "#" | head -1 | cut -d'"' -f2)
 
 if [ "$KV_ID" = "YOUR_KV_NAMESPACE_ID" ] || [ -z "$KV_ID" ]; then
     echo "📝 Creating KV namespace..."
@@ -43,7 +43,7 @@ if [ "$KV_ID" = "YOUR_KV_NAMESPACE_ID" ] || [ -z "$KV_ID" ]; then
     
     if [ -n "$NEW_KV_ID" ]; then
         # Update wrangler.toml with the new KV namespace ID
-        sed -i.bak "s/id = \".*\"/id = \"$NEW_KV_ID\"/" wrangler.toml
+        sed -i.bak "s/id = \".*\"/id = \"$NEW_KV_ID\"/" config/wrangler.toml
         echo -e "${GREEN}✅ KV namespace created: $NEW_KV_ID${NC}"
     else
         echo -e "${YELLOW}⚠️  Could not create KV namespace. It might already exist.${NC}"
@@ -55,7 +55,7 @@ fi
 # Deploy the worker
 echo ""
 echo "☁️  Deploying to Cloudflare Workers..."
-npx wrangler deploy
+npx wrangler deploy --config config/wrangler.toml
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Worker deployed successfully${NC}"
@@ -67,7 +67,7 @@ fi
 # Update secrets
 echo ""
 echo "🔐 Updating secrets..."
-./update-secrets.sh
+./scripts/update-secrets.sh
 
 # Get the worker URL
 WORKER_URL=$(npx wrangler deployments list | grep "https://" | head -1 | awk '{print $2}' || echo "https://mcp-mfai-tools.little-grass-273a.workers.dev")
@@ -92,5 +92,5 @@ echo "🧪 Test your deployment:"
 echo "  curl ${WORKER_URL}"
 echo ""
 echo "📊 View logs:"
-echo "  npx wrangler tail"
+echo "  npx wrangler tail --config config/wrangler.toml"
 echo ""

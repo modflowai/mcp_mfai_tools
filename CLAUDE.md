@@ -16,27 +16,39 @@ This is a production-ready MCP (Model Context Protocol) Server deployed on Cloud
 - **Database**: Neon PostgreSQL for full-text search in MODFLOW documentation
 - **Durable Objects**: Used for stateful MCP agent instances
 
-## Key Components
+## Project Structure
 
-- `index.ts`: Main entry point, configures OAuth provider and development mode
-- `mcp-agent.ts`: MCP agent implementation with authentication logic
-- `multi-provider-handler.ts`: Handles provider selection UI and OAuth callbacks
-- `github-handler.ts`: GitHub-specific OAuth flow
-- `google-handler.ts`: Google-specific OAuth flow  
+```
+src/
+├── index.ts                   # Main entry point, OAuth provider config
+├── mcp-agent.ts              # MCP agent with authentication logic
+├── handlers/                  # OAuth and request handlers
+│   ├── github-handler.ts     # GitHub OAuth flow
+│   ├── google-handler.ts     # Google OAuth flow
+│   └── multi-provider-handler.ts # Provider selection UI
+├── tools/                     # MCP tool implementations
+│   ├── search-examples.ts    # Tutorial and workflow search
+│   ├── search-code.ts        # API and module search
+│   ├── search-documentation.ts # Theory and reference search
+│   ├── get-file-content.ts   # Direct file retrieval
+│   ├── text-search.ts        # [DEPRECATED] Full-text search
+│   ├── semantic-search.ts    # [DEPRECATED] Semantic search
+│   └── acronym-mappings.json # Acronym expansions
+└── utils/                     # Utility functions
+    ├── utils.ts              # OAuth utilities
+    └── workers-oauth-utils.ts # UI rendering
 
-### Phase 1 Tools (Foundation)
-- `tools/text-search.ts`: Full-text database search tool with acronym expansion
-- `tools/semantic-search.ts`: Enhanced semantic search with similarity ranking
-- `tools/get-file-content.ts`: Direct file content retrieval by exact path
+config/
+├── wrangler.toml             # Production configuration
+└── wrangler.dev.toml         # Development configuration
 
-### Phase 2 Tools (Content-Focused)
-- `tools/search-examples.ts`: Search for tutorials, workflows, and complete implementations
-- `tools/search-code.ts`: Search for API details, function signatures, and class definitions
-- `tools/search-documentation.ts`: Search for theory, mathematical background, and reference guides
+scripts/
+├── deploy.sh                 # Automated deployment
+└── update-secrets.sh         # Secret management
 
-### Utilities
-- `tools/acronym-mappings.json`: Acronym expansions for improved search accuracy
-- `examples/simple-mcp-client.js`: Simple test client for development mode
+examples/
+└── simple-mcp-client.js      # Test client for development
+```
 
 ## Development Commands
 

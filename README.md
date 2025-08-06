@@ -17,35 +17,45 @@ A production-ready MCP (Model Context Protocol) server with OAuth authentication
 
 **🚀 Production URL:** https://mcp-mfai-tools.little-grass-273a.workers.dev
 
-## Structure
+## Project Structure
 
 ```
 mcp_mfai_tools/
-├── index.ts                    # Main entry point with OAuth provider
-├── mcp-agent.ts               # MCP agent with authentication  
-├── github-handler.ts          # GitHub OAuth handler
-├── google-handler.ts          # Google OAuth handler
-├── multi-provider-handler.ts  # Provider selection UI
-├── utils.ts                   # OAuth utility functions
-├── workers-oauth-utils.ts     # UI rendering utilities
-├── tools/
-│   ├── search-examples.ts     # Tutorial and workflow search (Phase 2)
-│   ├── search-code.ts         # API and module search (Phase 2)
-│   ├── search-documentation.ts # Theory and reference search (Phase 2)
-│   ├── get-file-content.ts    # Direct file content retrieval
-│   ├── text-search.ts         # [DEPRECATED] Full-text search
-│   ├── semantic-search.ts     # [DEPRECATED] Semantic search
-│   └── acronym-mappings.json  # Acronym expansions
-├── examples/
-│   └── simple-mcp-client.js   # Simple test client for development
-├── wrangler.toml              # Production configuration
-├── wrangler.dev.toml          # Development configuration
-├── .dev.vars                  # Development environment variables
+├── src/                        # Source code
+│   ├── index.ts               # Main entry point with OAuth provider
+│   ├── mcp-agent.ts           # MCP agent with authentication
+│   ├── handlers/              # OAuth and request handlers
+│   │   ├── github-handler.ts         # GitHub OAuth handler
+│   │   ├── google-handler.ts         # Google OAuth handler
+│   │   └── multi-provider-handler.ts # Provider selection UI
+│   ├── tools/                 # MCP tools
+│   │   ├── search-examples.ts        # Tutorial and workflow search
+│   │   ├── search-code.ts            # API and module search
+│   │   ├── search-documentation.ts   # Theory and reference search
+│   │   ├── get-file-content.ts       # Direct file content retrieval
+│   │   ├── text-search.ts            # [DEPRECATED] Full-text search
+│   │   ├── semantic-search.ts        # [DEPRECATED] Semantic search
+│   │   └── acronym-mappings.json     # Acronym expansions
+│   └── utils/                 # Utility functions
+│       ├── utils.ts                   # OAuth utility functions
+│       └── workers-oauth-utils.ts    # UI rendering utilities
+├── config/                    # Configuration files
+│   ├── wrangler.toml         # Production configuration
+│   └── wrangler.dev.toml     # Development configuration
+├── scripts/                   # Build and deployment scripts
+│   ├── deploy.sh             # Automated deployment script
+│   └── update-secrets.sh     # Secret management script
+├── examples/                  # Example code
+│   └── simple-mcp-client.js  # Simple test client for development
+├── tests/                     # Test files (placeholder)
+├── docs/                      # Documentation assets
+├── .env                       # Environment variables (not in git)
+├── .gitignore
 ├── package.json
-├── deploy.sh                  # Automated deployment script
-├── update-secrets.sh          # Secret management script
-├── CLAUDE.md                  # Development guidance
-└── README.md
+├── tsconfig.json             # TypeScript configuration
+├── pnpm-lock.yaml
+├── CLAUDE.md                 # Development guidance
+└── README.md                 # This file
 ```
 
 ## Setup Instructions

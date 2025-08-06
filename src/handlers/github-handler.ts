@@ -1,8 +1,8 @@
 import type { AuthRequest, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { Hono } from "hono";
 import { Octokit } from "octokit";
-import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl, Props } from "./utils";
-import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from "./workers-oauth-utils";
+import { fetchUpstreamAuthToken, getUpstreamAuthorizeUrl, Props } from "../utils/utils";
+import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from "../utils/workers-oauth-utils";
 
 interface Env {
   GITHUB_CLIENT_ID: string;

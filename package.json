@@ -4,11 +4,13 @@
   "description": "Minimal MCP server with HTTP transport",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --config wrangler.dev.toml",
-    "dev:prod": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "tail": "wrangler tail",
-    "test:client": "node examples/simple-mcp-client.js"
+    "dev": "wrangler dev --config config/wrangler.dev.toml",
+    "dev:prod": "wrangler dev --config config/wrangler.toml",
+    "deploy": "wrangler deploy --config config/wrangler.toml",
+    "tail": "wrangler tail --config config/wrangler.toml",
+    "test:client": "node examples/simple-mcp-client.js",
+    "build": "tsc",
+    "clean": "rm -rf dist .wrangler"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.4.0",
