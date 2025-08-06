@@ -4,6 +4,7 @@
 .env.production
 .env.staging
 .env.development
+.dev.vars
 
 # Reference files and documentation
 .references/

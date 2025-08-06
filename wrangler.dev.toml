@@ -1,0 +1,33 @@
+# Development configuration for wrangler
+# This extends wrangler.toml with development-specific settings
+
+name = "mcp-mfai-tools-dev"
+main = "index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# KV namespace for OAuth sessions (same as production)
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "c6668cdb8dfc4f2abf67aab912b3fc27"
+
+# Durable Objects binding
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "MinimalMCP"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MinimalMCP"]
+
+# Development environment variables
+[vars]
+DEBUG = "true"
+# IMPORTANT: Enable development mode to bypass OAuth
+DEVELOPMENT_MODE = "true"
+# User lists (not used in dev mode but kept for consistency)
+ALLOWED_GITHUB_USERS = "modflowai,danilopezmella"
+ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai"
+
+# Note: Secrets are loaded from .dev.vars file automatically by wrangler dev

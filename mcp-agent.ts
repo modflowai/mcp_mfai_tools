@@ -27,6 +27,8 @@ interface Env {
   ALLOWED_GOOGLE_USERS?: string;
   ADMIN_GOOGLE_USERS?: string;
   DEBUG?: string;
+  // Development mode - bypasses OAuth when set to "true"
+  DEVELOPMENT_MODE?: string;
 }
 
 // Context from the auth process, encrypted & stored in the auth token
@@ -76,9 +78,13 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   // User access control lists
   private ALLOWED_GITHUB_USERS: Set<string> = new Set();
   private ALLOWED_GOOGLE_USERS: Set<string> = new Set();
+  private isDevelopmentMode: boolean = false;
   
   constructor(ctx: any, env: Env) {
     super(ctx, env);
+    
+    // Check if in development mode
+    this.isDevelopmentMode = env.DEVELOPMENT_MODE === 'true';
     
     // Initialize user access lists
     this.ALLOWED_GITHUB_USERS = parseUserList(env.ALLOWED_GITHUB_USERS, DEFAULT_ALLOWED_USERS);
@@ -88,7 +94,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       {
         name: "MFAI Tools",
         version: "1.0.0",
-        description: "MODFLOW AI MCP Server - Access and search groundwater modeling documentation.",
+        description: `MODFLOW AI MCP Server - Access and search groundwater modeling documentation.${this.isDevelopmentMode ? ' [DEVELOPMENT MODE]' : ''}`,
       },
       {
         capabilities: {
@@ -99,30 +105,49 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   }
   
   async init() {
-    // User context available via this.props
-    const user = this.props;
-    console.log(`[MCP] Initializing for user: ${user.login || user.email}`);
+    // In development mode, create a mock user and skip authentication
+    let user = this.props;
     
-    // Check if user is allowed
-    const isAllowed = this.checkUserAccess(user);
-    
-    if (!isAllowed) {
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        `Access denied. User ${user.login || user.email} (${user.provider || 'unknown'}) is not authorized to use this MCP server.`
-      );
+    if (this.isDevelopmentMode) {
+      console.log('[MCP] Running in DEVELOPMENT MODE - OAuth bypassed');
+      user = {
+        login: 'dev-user',
+        name: 'Development User',
+        email: 'dev@localhost',
+        accessToken: 'dev-token',
+        provider: 'development'
+      } as Props;
+    } else {
+      console.log(`[MCP] Initializing for user: ${user.login || user.email}`);
+      
+      // Check if user is allowed (only in production mode)
+      const isAllowed = this.checkUserAccess(user);
+      
+      if (!isAllowed) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Access denied. User ${user.login || user.email} (${user.provider || 'unknown'}) is not authorized to use this MCP server.`
+        );
+      }
     }
     
     // Validate connection string
     if (!this.env.MODFLOW_AI_MCP_01_CONNECTION_STRING) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        "Database connection string is not configured"
-      );
+      if (this.isDevelopmentMode) {
+        console.warn('[MCP] ⚠️  WARNING: Database connection string not configured in development mode');
+        console.warn('[MCP] Tools will return mock data or errors when database is needed');
+        // Set a dummy connection string to avoid errors
+        this.sql = () => Promise.resolve([]);
+      } else {
+        throw new McpError(
+          ErrorCode.InternalError,
+          "Database connection string is not configured"
+        );
+      }
+    } else {
+      // Initialize database connection
+      this.sql = neon(this.env.MODFLOW_AI_MCP_01_CONNECTION_STRING);
     }
-    
-    // Initialize database connection
-    this.sql = neon(this.env.MODFLOW_AI_MCP_01_CONNECTION_STRING);
     
     // Handle initialization
     this.server.setRequestHandler(InitializeRequestSchema, async (request: any) => {
@@ -139,9 +164,10 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
           tools: {},
         },
         serverInfo: {
-          name: 'MFAI Minimal Tools',
+          name: `MFAI Minimal Tools${this.isDevelopmentMode ? ' [DEV]' : ''}`,
           version: '1.0.0',
           user: user.login || user.email,
+          developmentMode: this.isDevelopmentMode,
         },
       };
     });
@@ -193,8 +219,15 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     });
     
     console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name);
-    console.log("[MCP] Allowed GitHub users:", Array.from(this.ALLOWED_GITHUB_USERS));
-    console.log("[MCP] Allowed Google users:", Array.from(this.ALLOWED_GOOGLE_USERS));
+    
+    if (this.isDevelopmentMode) {
+      console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
+      console.log("[MCP] This mode should NEVER be used in production!");
+    } else {
+      console.log("[MCP] Production mode - OAuth authentication required");
+      console.log("[MCP] Allowed GitHub users:", Array.from(this.ALLOWED_GITHUB_USERS));
+      console.log("[MCP] Allowed Google users:", Array.from(this.ALLOWED_GOOGLE_USERS));
+    }
   }
   
   private checkUserAccess(user: Props): boolean {

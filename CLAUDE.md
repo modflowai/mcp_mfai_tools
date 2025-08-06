@@ -18,23 +18,34 @@ This is a production-ready MCP (Model Context Protocol) Server deployed on Cloud
 
 ## Key Components
 
-- `index.ts`: Main entry point, configures OAuth provider
+- `index.ts`: Main entry point, configures OAuth provider and development mode
 - `mcp-agent.ts`: MCP agent implementation with authentication logic
 - `multi-provider-handler.ts`: Handles provider selection UI and OAuth callbacks
 - `github-handler.ts`: GitHub-specific OAuth flow
 - `google-handler.ts`: Google-specific OAuth flow  
 - `tools/text-search.ts`: Full-text database search tool with acronym expansion
 - `tools/semantic-search.ts`: Enhanced semantic search with similarity ranking
+- `tools/get-file-content.ts`: Direct file content retrieval by exact path
+- `examples/simple-mcp-client.js`: Simple test client for development mode
 
 ## Development Commands
 
+### Development Mode (Recommended for Local Development)
 ```bash
 # Install dependencies
 pnpm install
 
-# Run development server locally
+# Run development server with OAuth bypass
 pnpm run dev
 
+# Test with simple MCP client
+pnpm run test:client
+
+# Access development server at http://localhost:8787
+```
+
+### Production Mode
+```bash
 # Deploy to Cloudflare Workers
 npx wrangler deploy
 
@@ -43,6 +54,9 @@ npx wrangler deploy
 
 # Update secrets easily
 ./update-secrets.sh
+
+# Run locally with production OAuth (requires OAuth setup)
+pnpm run dev:prod
 
 # View deployment logs
 npx wrangler tail mcp-mfai-tools --format pretty
@@ -54,6 +68,7 @@ npx wrangler tail mcp-mfai-tools --format pretty
 - `ALLOWED_GITHUB_USERS`: Comma-separated GitHub usernames
 - `ALLOWED_GOOGLE_USERS`: Comma-separated Google email addresses
 - `DEBUG`: Enable debug logging ("true"/"false")
+- `DEVELOPMENT_MODE`: Bypass OAuth when set to "true" (NEVER use in production!)
 
 ### Secrets (set with wrangler secret put)
 - `MODFLOW_AI_MCP_01_CONNECTION_STRING`: Neon database connection
@@ -183,6 +198,11 @@ const toolsList = [
     inputSchema: semanticSearchSchema.inputSchema,
   },
   {
+    name: getFileContentSchema.name,
+    description: getFileContentSchema.description,
+    inputSchema: getFileContentSchema.inputSchema,
+  },
+  {
     name: myNewToolSchema.name,
     description: myNewToolSchema.description,
     inputSchema: myNewToolSchema.inputSchema,
@@ -198,6 +218,9 @@ switch (name) {
   
   case 'semantic_search_repository':
     return await this.handleSemanticSearchRepository(args);
+  
+  case 'get_file_content':
+    return await this.handleGetFileContent(args);
   
   case 'my_new_tool':
     return await this.handleMyNewTool(args);
@@ -219,7 +242,7 @@ private async handleMyNewTool(args: any) {
 
 5. **Update logging**:
 ```typescript
-console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, myNewToolSchema.name);
+console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, myNewToolSchema.name);
 ```
 
 #### Step 3: Deploy and Test
@@ -276,8 +299,9 @@ mcp__mfaitools__my_new_tool({
 ### Tool Categories and Examples
 
 #### Database Query Tools
-- **Text Search**: Full-text search with PostgreSQL
+- **Text Search**: Full-text search with PostgreSQL and acronym expansion
 - **Semantic Search**: Enhanced search with similarity ranking
+- **Get File Content**: Direct file retrieval by exact path
 - **Data Extraction**: Retrieve specific records or statistics
 
 #### Analysis Tools
@@ -374,12 +398,37 @@ The search tools query the `repository_files` table with columns:
 
 ## Testing
 
-For local development, use `pnpm run dev` which starts a local Cloudflare Workers development server. The server will be available at `http://localhost:8787`.
+### Development Mode Testing
+For local development without OAuth complexity:
 
+```bash
+# Start development server (no OAuth)
+pnpm run dev
+
+# In another terminal, test with simple client
+pnpm run test:client
+
+# Or configure your MCP client:
+# URL: http://localhost:8787/mcp
+# No authentication required
+```
+
+The development server at `http://localhost:8787` provides:
+- `/` - Status page with server info and tool list
+- `/mcp` - Direct MCP endpoint (no auth required)
+
+**Development Mode Features:**
+- OAuth authentication completely bypassed
+- Mock user created automatically
+- Database connection optional (tools will warn if missing)
+- Same tools available as production
+- Simple test client included for testing
+
+### Production Testing
 **Testing the deployed server:**
 - Check logs: `npx wrangler tail mcp-mfai-tools --format pretty`
 - Test OAuth flow: Visit https://mcp-mfai-tools.little-grass-273a.workers.dev
-- Test MCP endpoint: Configure in VS Code or Claude Desktop
+- Test MCP endpoint: Configure in VS Code or Claude Desktop with authentication
 
 ## Deployment Notes
 

@@ -27,8 +27,13 @@ mcp_mfai_tools/
 ├── workers-oauth-utils.ts     # UI rendering utilities
 ├── tools/
 │   ├── text-search.ts         # Full-text search with acronym expansion
-│   └── semantic-search.ts     # Enhanced semantic search with similarity ranking
-├── wrangler.toml              # Cloudflare Workers configuration
+│   ├── semantic-search.ts     # Enhanced semantic search with similarity ranking
+│   └── get-file-content.ts    # Direct file content retrieval
+├── examples/
+│   └── simple-mcp-client.js   # Simple test client for development
+├── wrangler.toml              # Production configuration
+├── wrangler.dev.toml          # Development configuration
+├── .dev.vars                  # Development environment variables
 ├── package.json
 ├── deploy.sh                  # Automated deployment script
 ├── update-secrets.sh          # Secret management script
@@ -192,6 +197,14 @@ const DEFAULT_ALLOWED_EMAILS = [
 - **Example**: Search for "groundwater flow modeling" finds related documentation about flow packages, discretization, and solver configuration
 - **Note**: Currently uses enhanced text search as fallback (true semantic embeddings require additional infrastructure)
 
+### 3. get_file_content
+- **Purpose**: Retrieve complete content of a specific file by its exact path
+- **Features**: Direct file access, full content retrieval, supports all file types in the database
+- **Input**: `repository` (required), `filepath` (required)
+- **Best for**: Getting the complete content when you know the exact file path
+- **Example**: Retrieve `mf6io/well_wel_package.md` from the `mf6` repository
+- **Note**: File paths must match exactly as stored in the database
+
 ### Supported Repositories
 - **mf6**: MODFLOW 6 documentation
 - **pest**: Parameter Estimation package documentation  
@@ -205,22 +218,118 @@ const DEFAULT_ALLOWED_EMAILS = [
 
 ### Local Testing
 
+#### Development Mode (No OAuth)
+For local development and testing without OAuth:
+
 ```bash
-# Run locally
+# Run in development mode (OAuth bypassed)
 pnpm run dev
 
-# View logs
+# Test with the simple MCP client
+pnpm run test:client
+
+# Access dev server at http://localhost:8787
+```
+
+**Development mode features:**
+- No authentication required
+- Direct access to MCP tools at `/mcp`
+- Status page with configuration info at `/`
+- Same tools as production version
+
+#### Production Mode Testing
+To test OAuth flow locally:
+
+```bash
+# Run with production configuration (OAuth required)
+pnpm run dev:prod
+
+# View deployment logs
 pnpm run tail
 
-# Check deployment status
+# Check production deployment status
 npx wrangler tail mcp-mfai-tools --format pretty
 ```
 
-### Adding More Tools
+#### Simple MCP Client
+A basic testing client is provided in `examples/simple-mcp-client.js`:
 
-1. Create new tool in `tools/` folder
-2. Import and register in `mcp-agent.ts`
-3. Tools are only available to authenticated users
+```bash
+# Make sure dev server is running first
+pnpm run dev
+
+# In another terminal, run the test client
+pnpm run test:client
+```
+
+This will test all available tools and show you how to interact with the MCP server programmatically.
+
+### Adding New Tools
+
+The recommended process for adding new MCP tools:
+
+#### 1. Create Tool File
+Create a new file in the `tools/` directory:
+```typescript
+// tools/my-tool.ts
+export const myToolSchema = {
+  name: "my_tool_name",
+  description: "Tool description",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      param1: { type: 'string' },
+      param2: { type: 'number' }
+    },
+    required: ['param1']
+  }
+};
+
+export async function myTool(args: any, sql: any) {
+  // Tool implementation
+  return {
+    content: [{
+      type: "text" as const,
+      text: "Result"
+    }]
+  };
+}
+```
+
+#### 2. Register in mcp-agent.ts
+```typescript
+// Import the tool
+import { myToolSchema, myTool } from "./tools/my-tool.js";
+
+// Add to toolsList array
+const toolsList = [
+  // ... existing tools
+  {
+    name: myToolSchema.name,
+    description: myToolSchema.description,
+    inputSchema: myToolSchema.inputSchema,
+  }
+];
+
+// Add handler case
+switch (name) {
+  // ... existing cases
+  case 'my_tool_name':
+    return await myTool(args, this.sql);
+}
+```
+
+#### 3. Deploy and Test
+```bash
+# Deploy to production
+npx wrangler deploy
+
+# Or test locally
+pnpm run dev
+pnpm run test:client
+```
+
+See [CLAUDE.md](./CLAUDE.md) for comprehensive documentation on adding tools.
 
 ## Security
 

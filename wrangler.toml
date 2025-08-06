@@ -21,6 +21,8 @@ new_sqlite_classes = ["MinimalMCP"]
 # Environment variables
 [vars]
 DEBUG = "true"
+# Development mode - NEVER set to "true" in production!
+DEVELOPMENT_MODE = "false"
 # Comma-separated lists of allowed users
 ALLOWED_GITHUB_USERS = "modflowai,danilopezmella"
 ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai"
