@@ -56,21 +56,55 @@ get_file_content (repository, filepath)
 - **"What are the API details?"** → `search_code` (modules, functions, parameters)  
 - **"What's the theory?"** → `search_documentation` (guides, mathematical background)
 
+**LLM-Driven Tool Selection Strategy:**
+Rather than hardcoded heuristics, rely on LLM language understanding with clear tool descriptions:
+
+```typescript
+search_examples: "Use when user wants tutorials, workflows, complete implementations, 
+                  step-by-step guides, or working code examples"
+
+search_code: "Use when user wants API details, function signatures, parameter lists, 
+              class definitions, or implementation specifics"
+
+search_documentation: "Use when user wants theory, mathematical background, 
+                       conceptual explanations, or reference material"
+```
+
+**Smart Recommendations via Output Schema:**
+Tools will include intelligent recommendations to guide LLM toward complementary searches:
+
+```typescript
+{
+  results: [...],
+  search_metadata: {
+    method_used: "semantic",
+    total_results: 5,
+    coverage: "examples"
+  },
+  recommendations: {
+    try_also: "search_code", 
+    reason: "For specific API parameters and implementation details",
+    suggested_query: "MAW package constructor parameters"
+  }
+}
+```
+
 **Implementation Plan:**
 1. **Create new tool interfaces** with content-specific schemas
-2. **Implement content-specific optimization**:
+2. **Implement intelligent search method selection**:
+   - Tools internally choose text/semantic/hybrid based on query analysis
    - Examples: Prioritize completeness, step-by-step clarity, working code
-   - Code: Prioritize API accuracy, parameter details, function signatures
+   - Code: Prioritize API accuracy, parameter details, function signatures  
    - Documentation: Prioritize conceptual explanation, theory, background
-3. **Add search_type parameter** for text vs semantic choice
+3. **Add smart recommendation system** to suggest complementary searches
 4. **Maintain backward compatibility** during transition
-5. **Update tool descriptions** to reflect specialized purposes
+5. **Update tool descriptions** for optimal LLM tool selection
 
 **Expected Benefits:**
-- Better AI tool selection based on user intent
-- Specialized result ranking per content type
-- Focused metadata display for each domain
-- Improved user experience with clearer tool purposes
+- Superior AI tool selection leveraging LLM language understanding
+- Intelligent chaining of complementary searches via recommendations
+- Specialized result ranking optimized per content type
+- Enhanced coverage through guided multi-tool workflows
 
 ### Phase 3: Advanced Features & Optimization 🔮 **FUTURE**
 **Objective**: Advanced capabilities and performance optimization
@@ -122,6 +156,18 @@ get_file_content (repository, filepath)
 
 **Alternative Considered**: Keep 2 current tools, add content_type parameter
 **Why Rejected**: Doesn't align with user intent-based mental models
+
+### Why LLM-Driven Tool Selection vs Heuristics?
+**Decision**: Let LLMs choose search methods with clear tool descriptions + smart recommendations
+
+**Rationale**:
+- **LLM Language Expertise**: LLMs excel at understanding query intent and nuanced language patterns
+- **Avoid Brittle Heuristics**: Hardcoded pattern matching inevitably fails on edge cases
+- **Natural Evolution**: Gets better as LLMs improve without code changes
+- **Smart Guidance**: Output schema recommendations enable intelligent multi-tool workflows
+
+**Alternative Considered**: Hardcoded heuristics (quotes→text, concepts→semantic)
+**Why Rejected**: Brittle, fails on nuanced queries, doesn't leverage LLM strengths
 
 ### Why Hybrid Search Strategy?
 **Decision**: Combine documentation + modules + workflows in single results
