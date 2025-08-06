@@ -75,6 +75,7 @@ export const textSearchSchema = {
 // Tool implementation
 export async function textSearchTool(args: any, sql: NeonQueryFunction<false, false>) {
   try {
+    console.log('[TEXT SEARCH] Starting text search with args:', args);
     const { query, repository, file_type, limit = 15, include_content = true } = args;
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -145,8 +146,11 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     // Execute search - simplified approach using tagged template literals
     let results;
     
+    console.log('[TEXT SEARCH] About to execute SQL query');
+    
     // Most common case - search all docs with content
     if (!repository && !file_type && include_content) {
+      console.log('[TEXT SEARCH] Using default query path (all docs with content)');
       results = await sql`
         SELECT filepath, repo_name, file_type, created_at, 
                COALESCE(analysis->>'title', '') as title,
@@ -173,6 +177,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
         ORDER BY relevance_score DESC, created_at DESC 
         LIMIT ${limit}
       `;
+      console.log('[TEXT SEARCH] SQL query completed, results:', results?.length || 0);
     } else if (repository) {
       // Search specific repository
       results = await sql`

@@ -26,6 +26,8 @@ interface Env {
   ADMIN_GITHUB_USERS?: string;
   ALLOWED_GOOGLE_USERS?: string;
   ADMIN_GOOGLE_USERS?: string;
+  // OpenAI API key for semantic search
+  OPENAI_API_KEY?: string;
   DEBUG?: string;
   // Development mode - bypasses OAuth when set to "true"
   DEVELOPMENT_MODE?: string;
@@ -74,6 +76,8 @@ const textSearchSchema = importedTextSearchSchema;
 export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   server: Server;
   sql: any;  // Database connection
+  private env: Env;  // Store env reference
+  private props!: Props;  // Store props reference (assigned in init)
   
   // User access control lists
   private ALLOWED_GITHUB_USERS: Set<string> = new Set();
@@ -82,6 +86,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   
   constructor(ctx: any, env: Env) {
     super(ctx, env);
+    this.env = env;  // Store for later access
     
     // Check if in development mode
     this.isDevelopmentMode = env.DEVELOPMENT_MODE === 'true';
@@ -105,7 +110,8 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   }
   
   async init() {
-    // In development mode, create a mock user and skip authentication
+    // User context available via base class props
+    this.props = (this as any).props;  // Access from base class
     let user = this.props;
     
     if (this.isDevelopmentMode) {
@@ -118,6 +124,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         provider: 'development'
       } as Props;
     } else {
+      // User context available via base class props
       console.log(`[MCP] Initializing for user: ${user.login || user.email}`);
       
       // Check if user is allowed (only in production mode)
@@ -258,7 +265,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   }
   
   private async handleSemanticSearchRepository(args: any) {
-    return await semanticSearchTool(args, this.sql);
+    return await semanticSearchTool(args, this.sql, this.env.OPENAI_API_KEY);
   }
   
   private async handleGetFileContent(args: any) {
