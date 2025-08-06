@@ -30,35 +30,7 @@ interface SearchResultItem {
 // Tool schema definition
 export const textSearchSchema = {
   name: "text_search_repository",
-  description: `
-    **EXACT KEYWORD SEARCH** - Find documents containing specific terms and phrases
-    
-    🎯 **When to use this tool:**
-    - You know the exact terminology (e.g., "WEL package", "boundary conditions")  
-    - Looking for specific function names, parameters, or technical terms
-    - Want to see ALL mentions of a keyword across repositories
-    - Need precise matches with highlighted snippets
-    
-    📝 **Example queries:**
-    - "hydraulic conductivity" → finds exact mentions in docs and code
-    - "WEL package" → finds all Well package implementations  
-    - "parameter estimation" → finds exact phrase matches
-    - "BCF OR LPF" → finds either Block-Centered Flow or Layer Property Flow
-    
-    🔍 **Search capabilities:**
-    - Exact keyword matching with smart ranking
-    - Phrase search with quotes: "steady state"
-    - Boolean operators: AND, OR, NOT  
-    - Wildcards: "conduct*" finds conductivity, conductance, etc.
-    - Acronym expansion: "GHB" also finds "General Head Boundary"
-    
-    📚 **What this searches:**
-    - **Documentation**: MODFLOW 6, PEST, MODFLOW-USG guides and examples
-    - **FloPy Code**: Python modules with package info (WEL, RIV, DRN, etc.)
-    - **PyEMU Code**: Uncertainty analysis modules with PEST integration
-    
-    💡 **Pro tip**: Start here if you know the exact term. Use semantic_search if you need conceptual matches.
-  `,
+  description: 'Full-text search across MODFLOW/PEST repositories for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG) and code modules (FloPy, PyEMU). Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets. Use for specific technical terms, parameter names, package codes. Examples: "WEL package", "hydraulic conductivity", "BCF OR LPF", "NOPTMAX". For conceptual searches, use semantic_search_repository instead.',
   inputSchema: {
     type: 'object',
     properties: {

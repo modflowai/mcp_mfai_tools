@@ -29,38 +29,7 @@ interface SemanticSearchResultItem {
 // Tool schema definition
 export const semanticSearchSchema = {
   name: "semantic_search_repository",
-  description: `
-    **AI-POWERED CONCEPTUAL SEARCH** - Find content by meaning and concepts, not just keywords
-    
-    🎯 **When to use this tool:**
-    - You're exploring a topic and don't know exact terms (e.g., "pumping water from aquifer")
-    - Want conceptually similar content even with different wording
-    - Looking for examples or implementations of an approach
-    - Research phase: "What tools exist for X?" 
-    
-    📝 **Example queries:**
-    - "pumping water" → finds WEL, MNW, injection wells (different terms, same concept)
-    - "uncertain parameters" → finds calibration, PEST, ensemble methods
-    - "groundwater boundaries" → finds RIV, GHB, DRN packages (related concepts)
-    - "model calibration" → finds parameter estimation across FloPy/PyEMU
-    
-    🤖 **How it works:**
-    - Uses OpenAI to understand query meaning 
-    - Finds content with similar concepts (not just matching words)
-    - Ranks by conceptual similarity (0-1 score)
-    - Returns rich metadata: use cases, related concepts, examples
-    
-    📚 **What this searches:**
-    - **MODFLOW Documentation**: Examples, theory, package descriptions
-    - **FloPy Modules**: Organized by model family (MODFLOW 6, MODFLOW-2005, USG)
-    - **PyEMU Modules**: Uncertainty analysis tools with PEST workflow integration
-    
-    🎛️ **Filter options:**
-    - FloPy: Filter by package_code (WEL, RIV) or model_family (mf6, modflow)  
-    - PyEMU: Filter by category (core, utils) for focused results
-    
-    💡 **Pro tip**: Start here for exploration and research. Use text_search when you know exact terms.
-  `,
+  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG) and code modules (FloPy, PyEMU) with vector similarity ranking. Supports filtering by model_family, package_code, or category. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "boundary condition types". For exact keyword matching, use text_search_repository instead.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -16,34 +16,7 @@ interface FileAnalysis {
 // Tool schema definition
 export const getFileContentSchema = {
   name: "get_file_content",
-  description: `
-    **GET COMPLETE FILE CONTENT** - Retrieve the full content of a specific file
-    
-    🎯 **When to use this tool:**
-    - You found a file via search and want to see the complete content
-    - Need to examine full source code or documentation  
-    - Want to analyze implementation details or examples
-    - Follow up after search results to get the complete picture
-    
-    📝 **Example workflow:**
-    1. Search: semantic_search("well package") → finds flopy/modflow/mfwel.py
-    2. Get details: get_file_content(repository="flopy", filepath="flopy/modflow/mfwel.py")  
-    3. Result: Complete Python source code + rich metadata
-    
-    📄 **What you get:**
-    - **Full file content** (source code, documentation, examples)
-    - **Rich metadata**: Title, summary, technical analysis, key concepts
-    - **File statistics**: Size, creation date, type classification
-    - **Structured overview** of complex files for easy understanding
-    
-    📚 **Available content:**
-    - **FloPy/PyEMU**: Complete Python module source code with docstrings
-    - **MODFLOW 6**: Theory guides, input instructions, examples  
-    - **PEST/PEST++**: Parameter estimation documentation and guides
-    - **MODFLOW-USG**: Unstructured grid documentation and workflows
-    
-    💡 **Pro tip**: Use this after search tools to dive deep into specific files. Perfect for understanding implementation details.
-  `,
+  description: 'Retrieves complete file content by exact filepath from MODFLOW/PEST repositories. Returns full source code or documentation with rich metadata including title, summary, key concepts, and file statistics. Supports all repositories: FloPy/PyEMU Python modules, MODFLOW 6 documentation, PEST guides, MODFLOW-USG workflows. Use after search tools to examine specific files in detail. Requires exact filepath from search results. Formats code with syntax highlighting and handles large files appropriately.',
   inputSchema: {
     type: 'object',
     properties: {
