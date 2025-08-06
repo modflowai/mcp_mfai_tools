@@ -17,6 +17,9 @@ import { neon } from '@neondatabase/serverless';
 import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./tools/text-search.js";
 import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
 import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
+import { searchExamplesSchema, searchExamples } from "./tools/search-examples.js";
+import { searchCodeSchema, searchCode } from "./tools/search-code.js";
+import { searchDocumentationSchema, searchDocumentation } from "./tools/search-documentation.js";
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -183,6 +186,23 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     
     // Register available tools
     const toolsList = [
+      // Phase 2: Content-focused tools (primary)
+      {
+        name: searchExamplesSchema.name,
+        description: searchExamplesSchema.description,
+        inputSchema: searchExamplesSchema.inputSchema,
+      },
+      {
+        name: searchCodeSchema.name,
+        description: searchCodeSchema.description,
+        inputSchema: searchCodeSchema.inputSchema,
+      },
+      {
+        name: searchDocumentationSchema.name,
+        description: searchDocumentationSchema.description,
+        inputSchema: searchDocumentationSchema.inputSchema,
+      },
+      // Phase 1: Legacy tools (maintained for compatibility)
       {
         name: textSearchSchema.name,
         description: textSearchSchema.description,
@@ -193,6 +213,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         description: semanticSearchSchema.description,
         inputSchema: semanticSearchSchema.inputSchema,
       },
+      // Utility tools
       {
         name: getFileContentSchema.name,
         description: getFileContentSchema.description,
@@ -210,6 +231,17 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       console.log(`[MCP] User ${user.login || user.email} called tool: ${name}`);
       
       switch (name) {
+        // Phase 2: Content-focused tools
+        case 'search_examples':
+          return await this.handleSearchExamples(args);
+        
+        case 'search_code':
+          return await this.handleSearchCode(args);
+        
+        case 'search_documentation':
+          return await this.handleSearchDocumentation(args);
+        
+        // Phase 1: Legacy tools (maintained for compatibility)
         case 'text_search_repository':
           return await this.handleTextSearchRepository(args);
         
@@ -227,7 +259,8 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name);
+    console.log("[MCP] Registered Phase 2 tools:", searchExamplesSchema.name, searchCodeSchema.name, searchDocumentationSchema.name);
+    console.log("[MCP] Registered Phase 1 tools (legacy):", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -262,6 +295,20 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     return false;
   }
   
+  // Phase 2: Content-focused tool handlers
+  private async handleSearchExamples(args: any) {
+    return await searchExamples(args, this.sql);
+  }
+  
+  private async handleSearchCode(args: any) {
+    return await searchCode(args, this.sql);
+  }
+  
+  private async handleSearchDocumentation(args: any) {
+    return await searchDocumentation(args, this.sql);
+  }
+  
+  // Phase 1: Legacy tool handlers (maintained for compatibility)
   private async handleTextSearchRepository(args: any) {
     return await textSearchTool(args, this.sql);
   }

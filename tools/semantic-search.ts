@@ -23,13 +23,25 @@ interface SemanticSearchResultItem {
   related_concepts?: string[];
   pest_integration?: string[];
   use_cases?: string[];
-  search_source?: 'documentation' | 'modules';
+  // Workflow-specific fields
+  model_type?: string;
+  workflow_type?: string;
+  complexity?: string;
+  packages_used?: string[];
+  tags?: string[];
+  workflow_purpose?: string;
+  best_use_cases?: string[];
+  prerequisites?: string[];
+  pest_concepts?: string[];
+  uncertainty_methods?: string[];
+  pyemu_modules?: string[];
+  search_source?: 'documentation' | 'modules' | 'workflows';
 }
 
 // Tool schema definition
 export const semanticSearchSchema = {
   name: "semantic_search_repository",
-  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG) and code modules (FloPy, PyEMU) with vector similarity ranking. Supports filtering by model_family, package_code, or category. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "boundary condition types". For exact keyword matching, use text_search_repository instead.',
+  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples with vector similarity ranking. Supports filtering by model_family, package_code, category, workflow_type, or complexity. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "uncertainty analysis", "time-varying boundary conditions". For exact keyword matching, use text_search_repository instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -147,16 +159,19 @@ export async function semanticSearchTool(args: any, sql: NeonQueryFunction<false
     const embeddingString = `[${queryEmbedding.join(',')}]`;
     
     if (isCodeRepo) {
-      // Search code modules with embeddings
-      results = await searchModulesWithEmbeddings(sql, repository, embeddingString, filter, limit);
+      // Search code modules and workflows with embeddings
+      const moduleResults = await searchModulesWithEmbeddings(sql, repository, embeddingString, filter, Math.ceil(limit / 2));
+      const workflowResults = await searchWorkflowsWithEmbeddings(sql, repository, embeddingString, filter, Math.floor(limit / 2));
+      results = [...moduleResults, ...workflowResults].sort((a, b) => b.similarity_score - a.similarity_score).slice(0, limit);
     } else if (isDocRepo) {
       // Search documentation with embeddings
       results = await searchDocumentationWithEmbeddings(sql, repository, embeddingString, limit);
     } else {
-      // Hybrid search with embeddings
-      const docResults = await searchDocumentationWithEmbeddings(sql, null, embeddingString, Math.ceil(limit / 2));
-      const moduleResults = await searchAllModulesWithEmbeddings(sql, embeddingString, filter, Math.floor(limit / 2));
-      results = [...docResults, ...moduleResults].sort((a, b) => b.similarity_score - a.similarity_score).slice(0, limit);
+      // Hybrid search with embeddings - docs, modules, and workflows
+      const docResults = await searchDocumentationWithEmbeddings(sql, null, embeddingString, Math.ceil(limit / 3));
+      const moduleResults = await searchAllModulesWithEmbeddings(sql, embeddingString, filter, Math.ceil(limit / 3));
+      const workflowResults = await searchAllWorkflowsWithEmbeddings(sql, embeddingString, filter, Math.floor(limit / 3));
+      results = [...docResults, ...moduleResults, ...workflowResults].sort((a, b) => b.similarity_score - a.similarity_score).slice(0, limit);
     }
 
     if (!results || results.length === 0) {
@@ -491,6 +506,115 @@ async function searchAllModulesWithText(
     .slice(0, limit);
 }
 
+// Helper functions for workflow search with embeddings
+async function searchWorkflowsWithEmbeddings(
+  sql: NeonQueryFunction<false, false>,
+  repository: string,
+  embeddingString: string,
+  filter: any,
+  limit: number
+): Promise<SemanticSearchResultItem[]> {
+  // Build filter conditions
+  let filterClause = '';
+  const queryParams = [embeddingString];
+  
+  if (repository === 'flopy') {
+    if (filter.model_type) {
+      filterClause += ' AND LOWER(model_type) = LOWER($' + (queryParams.length + 1) + ')';
+      queryParams.push(filter.model_type);
+    }
+    if (filter.complexity) {
+      filterClause += ' AND LOWER(complexity) = LOWER($' + (queryParams.length + 1) + ')';
+      queryParams.push(filter.complexity);
+    }
+  } else if (repository === 'pyemu') {
+    if (filter.workflow_type) {
+      filterClause += ' AND LOWER(workflow_type) = LOWER($' + (queryParams.length + 1) + ')';
+      queryParams.push(filter.workflow_type);
+    }
+    if (filter.complexity) {
+      filterClause += ' AND LOWER(complexity) = LOWER($' + (queryParams.length + 1) + ')';
+      queryParams.push(filter.complexity);
+    }
+  }
+  
+  // Execute search based on repository
+  let results;
+  if (repository === 'flopy') {
+    const queryString = `
+      SELECT 
+        tutorial_file as filepath,
+        '${repository}' as repo_name,
+        'py' as file_type,
+        title,
+        description,
+        model_type,
+        complexity,
+        packages_used,
+        tags,
+        workflow_purpose,
+        best_use_cases,
+        prerequisites,
+        1 - (embedding <=> $1::vector) as similarity_score,
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        'workflows' as search_source
+      FROM flopy_workflows
+      WHERE embedding IS NOT NULL${filterClause}
+      ORDER BY embedding <=> $1::vector
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, queryParams);
+  } else {
+    const queryString = `
+      SELECT 
+        notebook_file as filepath,
+        '${repository}' as repo_name,
+        'ipynb' as file_type,
+        title,
+        description,
+        workflow_type,
+        complexity,
+        pest_concepts,
+        uncertainty_methods,
+        pyemu_modules,
+        tags,
+        workflow_purpose,
+        common_applications as best_use_cases,
+        prerequisites,
+        1 - (embedding <=> $1::vector) as similarity_score,
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        'workflows' as search_source
+      FROM pyemu_workflows
+      WHERE embedding IS NOT NULL${filterClause}
+      ORDER BY embedding <=> $1::vector
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, queryParams);
+  }
+  
+  return Array.isArray(results) ? results : [];
+}
+
+async function searchAllWorkflowsWithEmbeddings(
+  sql: NeonQueryFunction<false, false>,
+  embeddingString: string,
+  filter: any,
+  limit: number
+): Promise<SemanticSearchResultItem[]> {
+  const floepyResults = await searchWorkflowsWithEmbeddings(sql, 'flopy', embeddingString, filter, Math.ceil(limit / 2));
+  const pyemuResults = await searchWorkflowsWithEmbeddings(sql, 'pyemu', embeddingString, filter, Math.floor(limit / 2));
+  
+  return [...floepyResults, ...pyemuResults]
+    .sort((a, b) => b.similarity_score - a.similarity_score)
+    .slice(0, limit);
+}
+
 // Format results for MCP output
 function formatSemanticSearchResults(
   results: SemanticSearchResultItem[],
@@ -509,6 +633,7 @@ function formatSemanticSearchResults(
 
   const moduleCount = resultsArray.filter((r: any) => r.search_source === 'modules').length;
   const docCount = resultsArray.filter((r: any) => r.search_source === 'documentation').length;
+  const workflowCount = resultsArray.filter((r: any) => r.search_source === 'workflows').length;
 
   // Format output for MCP
   let outputText = `Found ${resultsArray.length} semantic result${resultsArray.length !== 1 ? 's' : ''} for "${query}"`;
@@ -517,7 +642,7 @@ function formatSemanticSearchResults(
 
   outputText += `Summary:\n`;
   outputText += `- Average similarity: ${avgSimilarity.toFixed(3)}\n`;
-  outputText += `- Sources: ${docCount} docs, ${moduleCount} modules\n`;
+  outputText += `- Sources: ${docCount} docs, ${moduleCount} modules, ${workflowCount} workflows\n`;
   outputText += `- Repositories: ${uniqueRepos.join(', ')}\n`;
   if (uniqueTypes.length > 0) {
     outputText += `- File types: ${uniqueTypes.join(', ')}\n`;
@@ -540,6 +665,23 @@ function formatSemanticSearchResults(
     }
     if (result.category) {
       outputText += `   Category: ${result.category}\n`;
+    }
+    
+    // Workflow-specific metadata
+    if (result.model_type) {
+      outputText += `   Model Type: ${result.model_type}\n`;
+    }
+    if (result.workflow_type) {
+      outputText += `   Workflow Type: ${result.workflow_type}\n`;
+    }
+    if (result.complexity) {
+      outputText += `   Complexity: ${result.complexity}\n`;
+    }
+    if (result.packages_used && result.packages_used.length > 0) {
+      outputText += `   Packages: ${result.packages_used.slice(0, 5).join(', ')}${result.packages_used.length > 5 ? '...' : ''}\n`;
+    }
+    if (result.tags && result.tags.length > 0) {
+      outputText += `   Tags: ${result.tags.slice(0, 5).join(', ')}${result.tags.length > 5 ? '...' : ''}\n`;
     }
     
     // Standard fields

@@ -24,13 +24,25 @@ interface SearchResultItem {
   related_concepts?: string[];
   pest_integration?: string[];
   use_cases?: string[];
-  search_source?: 'documentation' | 'modules';
+  // Workflow-specific fields
+  model_type?: string;
+  workflow_type?: string;
+  complexity?: string;
+  packages_used?: string[];
+  tags?: string[];
+  workflow_purpose?: string;
+  best_use_cases?: string[];
+  prerequisites?: string[];
+  pest_concepts?: string[];
+  uncertainty_methods?: string[];
+  pyemu_modules?: string[];
+  search_source?: 'documentation' | 'modules' | 'workflows';
 }
 
 // Tool schema definition
 export const textSearchSchema = {
   name: "text_search_repository",
-  description: 'Full-text search across MODFLOW/PEST repositories for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG) and code modules (FloPy, PyEMU). Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets. Use for specific technical terms, parameter names, package codes. Examples: "WEL package", "hydraulic conductivity", "BCF OR LPF", "NOPTMAX". For conceptual searches, use semantic_search_repository instead.',
+  description: 'Full-text search across MODFLOW/PEST repositories for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples. Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets and rich metadata (packages, complexity, tags). Use for specific technical terms, parameter names, package codes, workflow types. Examples: "WEL package", "hydraulic conductivity", "parameter estimation", "time series". For conceptual searches, use semantic_search_repository instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -139,16 +151,19 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     
     // Execute search based on repository type
     if (isCodeRepo) {
-      // Search code modules
-      results = await searchModulesWithText(sql, repository, searchTerm, limit, include_content);
+      // Search code modules and workflows
+      const moduleResults = await searchModulesWithText(sql, repository, searchTerm, Math.ceil(limit / 2), include_content);
+      const workflowResults = await searchWorkflowsWithText(sql, repository, searchTerm, Math.floor(limit / 2), include_content);
+      results = [...moduleResults, ...workflowResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
     } else if (isDocRepo) {
       // Search specific documentation repository
       results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
     } else if (searchAllRepos) {
-      // Hybrid search - both docs and modules
-      const docResults = await searchDocumentationWithText(sql, null, searchTerm, file_type, Math.ceil(limit / 2), include_content);
-      const moduleResults = await searchAllModulesWithText(sql, searchTerm, Math.floor(limit / 2), include_content);
-      results = [...docResults, ...moduleResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
+      // Hybrid search - docs, modules, and workflows
+      const docResults = await searchDocumentationWithText(sql, null, searchTerm, file_type, Math.ceil(limit / 3), include_content);
+      const moduleResults = await searchAllModulesWithText(sql, searchTerm, Math.ceil(limit / 3), include_content);
+      const workflowResults = await searchAllWorkflowsWithText(sql, searchTerm, Math.floor(limit / 3), include_content);
+      results = [...docResults, ...moduleResults, ...workflowResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
     } else {
       // Fallback to original logic for edge cases
       results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
@@ -177,6 +192,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
 
     const moduleCount = resultsArray.filter((r: any) => r.search_source === 'modules').length;
     const docCount = resultsArray.filter((r: any) => r.search_source === 'documentation').length;
+    const workflowCount = resultsArray.filter((r: any) => r.search_source === 'workflows').length;
 
     // Format output for MCP
     let outputText = `Found ${resultsArray.length} result${resultsArray.length !== 1 ? 's' : ''} for "${query}"`;
@@ -185,7 +201,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
 
     outputText += `Summary:\n`;
     outputText += `- Average relevance: ${avgRelevance.toFixed(3)}\n`;
-    outputText += `- Sources: ${docCount} docs, ${moduleCount} modules\n`;
+    outputText += `- Sources: ${docCount} docs, ${moduleCount} modules, ${workflowCount} workflows\n`;
     outputText += `- Repositories: ${uniqueRepos.join(', ')}\n`;
     if (uniqueTypes.length > 0) {
       outputText += `- File types: ${uniqueTypes.join(', ')}\n`;
@@ -208,6 +224,23 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       }
       if (result.category) {
         outputText += `   Category: ${result.category}\n`;
+      }
+      
+      // Workflow-specific metadata
+      if (result.model_type) {
+        outputText += `   Model Type: ${result.model_type}\n`;
+      }
+      if (result.workflow_type) {
+        outputText += `   Workflow Type: ${result.workflow_type}\n`;
+      }
+      if (result.complexity) {
+        outputText += `   Complexity: ${result.complexity}\n`;
+      }
+      if (result.packages_used && result.packages_used.length > 0) {
+        outputText += `   Packages: ${result.packages_used.slice(0, 5).join(', ')}${result.packages_used.length > 5 ? '...' : ''}\n`;
+      }
+      if (result.tags && result.tags.length > 0) {
+        outputText += `   Tags: ${result.tags.slice(0, 5).join(', ')}${result.tags.length > 5 ? '...' : ''}\n`;
       }
       
       // Standard fields
@@ -397,6 +430,111 @@ async function searchAllModulesWithText(
 ): Promise<SearchResultItem[]> {
   const floepyResults = await searchModulesWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content);
   const pyemuResults = await searchModulesWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content);
+  
+  return [...floepyResults, ...pyemuResults]
+    .sort((a, b) => b.relevance_score - a.relevance_score)
+    .slice(0, limit);
+}
+
+// Helper functions for workflow search
+async function searchWorkflowsWithText(
+  sql: NeonQueryFunction<false, false>,
+  repository: string,
+  searchTerm: string,
+  limit: number,
+  include_content: boolean
+): Promise<SearchResultItem[]> {
+  let results;
+  if (repository === 'flopy') {
+    const queryString = `
+      SELECT 
+        tutorial_file as filepath,
+        '${repository}' as repo_name,
+        'py' as file_type,
+        title,
+        description,
+        model_type,
+        complexity,
+        packages_used,
+        tags,
+        workflow_purpose,
+        best_use_cases,
+        prerequisites,
+        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ${include_content ? `
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        ts_headline('english', 
+          COALESCE(title, '') || ' ' || COALESCE(workflow_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
+          to_tsquery('english', $1), 
+          'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+        ) as content_snippet
+        ` : `
+        null as content_preview,
+        null as content_snippet
+        `},
+        'workflows' as search_source
+      FROM flopy_workflows
+      WHERE search_vector @@ to_tsquery('english', $1)
+      ORDER BY relevance_score DESC
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, [searchTerm]);
+  } else {
+    // PyEMU workflows
+    const queryString = `
+      SELECT 
+        notebook_file as filepath,
+        '${repository}' as repo_name,
+        'ipynb' as file_type,
+        title,
+        description,
+        workflow_type,
+        complexity,
+        pest_concepts,
+        uncertainty_methods,
+        pyemu_modules,
+        tags,
+        workflow_purpose,
+        common_applications as best_use_cases,
+        prerequisites,
+        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ${include_content ? `
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        ts_headline('english', 
+          COALESCE(title, '') || ' ' || COALESCE(workflow_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
+          to_tsquery('english', $1), 
+          'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+        ) as content_snippet
+        ` : `
+        null as content_preview,
+        null as content_snippet
+        `},
+        'workflows' as search_source
+      FROM pyemu_workflows
+      WHERE search_vector @@ to_tsquery('english', $1)
+      ORDER BY relevance_score DESC
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, [searchTerm]);
+  }
+  
+  return Array.isArray(results) ? results as SearchResultItem[] : [];
+}
+
+async function searchAllWorkflowsWithText(
+  sql: NeonQueryFunction<false, false>,
+  searchTerm: string,
+  limit: number,
+  include_content: boolean
+): Promise<SearchResultItem[]> {
+  const floepyResults = await searchWorkflowsWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content);
+  const pyemuResults = await searchWorkflowsWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content);
   
   return [...floepyResults, ...pyemuResults]
     .sort((a, b) => b.relevance_score - a.relevance_score)

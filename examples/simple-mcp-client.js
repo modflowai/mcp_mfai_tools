@@ -7,7 +7,7 @@
 
 import http from 'http';
 
-const MCP_SERVER_URL = 'http://localhost:8787/mcp';
+const MCP_SERVER_URL = 'http://localhost:42717/mcp';
 
 // Simple MCP protocol implementation
 class SimpleMCPClient {
@@ -122,22 +122,42 @@ async function testMCPServer() {
     const tools = await client.listTools();
     console.log();
 
-    // Test text search tool
-    if (tools.find(t => t.name === 'text_search_repository')) {
-      console.log('🔍 Testing text search...');
-      await client.callTool('text_search_repository', {
-        query: 'WEL well package',
-        repository: 'mf6',
+    // Test Phase 2: Content-focused tools
+    if (tools.find(t => t.name === 'search_examples')) {
+      console.log('📚 Testing search_examples (Phase 2)...');
+      await client.callTool('search_examples', {
+        query: 'MAW package tutorial',
+        search_type: 'auto',
         limit: 2
       });
       console.log();
     }
 
-    // Test semantic search tool
-    if (tools.find(t => t.name === 'semantic_search_repository')) {
-      console.log('🧠 Testing semantic search...');
-      await client.callTool('semantic_search_repository', {
-        query: 'groundwater flow modeling',
+    if (tools.find(t => t.name === 'search_code')) {
+      console.log('💻 Testing search_code (Phase 2)...');
+      await client.callTool('search_code', {
+        query: 'WEL package parameters',
+        search_type: 'auto',
+        limit: 2
+      });
+      console.log();
+    }
+
+    if (tools.find(t => t.name === 'search_documentation')) {
+      console.log('📖 Testing search_documentation (Phase 2)...');
+      await client.callTool('search_documentation', {
+        query: 'groundwater flow theory',
+        search_type: 'auto',
+        limit: 2
+      });
+      console.log();
+    }
+
+    // Test Phase 1: Legacy tools (if available)
+    if (tools.find(t => t.name === 'text_search_repository')) {
+      console.log('🔍 Testing text search (Phase 1 legacy)...');
+      await client.callTool('text_search_repository', {
+        query: 'WEL well package',
         repository: 'mf6',
         limit: 2
       });
@@ -195,7 +215,7 @@ async function checkServer() {
     console.log('   cd /path/to/mcp_mfai_tools');
     console.log('   pnpm run dev');
     console.log('');
-    console.log('The server should be available at: http://localhost:8787');
+    console.log('The server should be available at: http://localhost:42717');
     process.exit(1);
   }
 
