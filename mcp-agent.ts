@@ -227,8 +227,12 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     
     // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      console.log('[MCP] Raw request:', JSON.stringify(request, null, 2));
+      console.log('[MCP] Request params:', JSON.stringify(request.params, null, 2));
+      
       const { name, arguments: args } = request.params;
       console.log(`[MCP] User ${user.login || user.email} called tool: ${name}`);
+      console.log('[MCP] Extracted args:', JSON.stringify(args, null, 2));
       
       switch (name) {
         // Phase 2: Content-focused tools
@@ -295,17 +299,105 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     return false;
   }
   
-  // Phase 2: Content-focused tool handlers
+  // Phase 2: Content-focused tool handlers  
   private async handleSearchExamples(args: any) {
-    return await searchExamples(args, this.sql);
+    try {
+      console.log('[MCP] handleSearchExamples called with args:', JSON.stringify(args));
+      
+      // Handle the case where args might be undefined or malformed
+      if (!args || typeof args !== 'object') {
+        args = {};
+      }
+      
+      // Try calling the imported function
+      if (typeof searchExamples === 'function') {
+        console.log('[MCP] Calling searchExamples function');
+        const result = await searchExamples(args, this.sql);
+        console.log('[MCP] searchExamples returned successfully');
+        return result;
+      } else {
+        // Fallback to inline implementation
+        console.log('[MCP] Using inline fallback implementation');
+        const { query, repository, limit = 10 } = args;
+        
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+          return {
+            content: [{
+              type: "text" as const,
+              text: "Error: Query parameter is required and cannot be empty"
+            }]
+          };
+        }
+        
+        // Return a simple test response
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              message: "Search examples tool (fallback)",
+              query: query,
+              repository: repository || "all",
+              limit: limit
+            }, null, 2)
+          }]
+        };
+      }
+      
+    } catch (error) {
+      console.error('[MCP] Error in handleSearchExamples:', error);
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
   
   private async handleSearchCode(args: any) {
-    return await searchCode(args, this.sql);
+    try {
+      console.log('[MCP] handleSearchCode called');
+      
+      if (typeof searchCode !== 'function') {
+        throw new Error('searchCode function not properly imported');
+      }
+      
+      const result = await searchCode(args, this.sql);
+      console.log('[MCP] searchCode result received');
+      return result;
+      
+    } catch (error) {
+      console.error('[MCP] Error in handleSearchCode:', error);
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error in search_code: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
   
   private async handleSearchDocumentation(args: any) {
-    return await searchDocumentation(args, this.sql);
+    try {
+      console.log('[MCP] handleSearchDocumentation called');
+      
+      if (typeof searchDocumentation !== 'function') {
+        throw new Error('searchDocumentation function not properly imported');
+      }
+      
+      const result = await searchDocumentation(args, this.sql);
+      console.log('[MCP] searchDocumentation result received');
+      return result;
+      
+    } catch (error) {
+      console.error('[MCP] Error in handleSearchDocumentation:', error);
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error in search_documentation: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
   
   // Phase 1: Legacy tool handlers (maintained for compatibility)

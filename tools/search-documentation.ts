@@ -8,20 +8,7 @@ import type { NeonQueryFunction } from "@neondatabase/serverless";
 
 export const searchDocumentationSchema = {
   name: "search_documentation",
-  description: `
-    Search for theory, mathematical background, conceptual explanations, and reference material across MODFLOW/PEST documentation repositories.
-    
-    Use when user wants:
-    - Mathematical theory and formulations
-    - Conceptual explanations and background
-    - Reference documentation and guides
-    - Scientific principles and methods
-    - Theoretical foundations
-    - Detailed technical explanations
-    
-    Searches comprehensive documentation collections including MODFLOW 6, PEST, PEST++, MODFLOW-USG guides with detailed theoretical content.
-    Available repositories: mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils (documentation), flopy, pyemu (limited documentation).
-  `,
+  description: "Search for theory, mathematical background, conceptual explanations, and reference material across MODFLOW/PEST documentation repositories. Use when user wants: mathematical theory, conceptual explanations, reference guides, scientific principles, theoretical foundations, or technical explanations. Searches comprehensive documentation including MODFLOW 6, PEST, PEST++, MODFLOW-USG guides. Available repositories: mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils, flopy, pyemu.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,18 +16,9 @@ export const searchDocumentationSchema = {
         type: 'string',
         description: 'Search query for documentation and theoretical content',
       },
-      search_type: {
-        type: 'string',
-        enum: ['text', 'semantic', 'auto'],
-        description: 'Search method: text for exact terminology, semantic for conceptual similarity, auto for intelligent selection',
-      },
       repository: {
         type: 'string',
         description: 'Repository to search: mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils, flopy, pyemu',
-      },
-      file_type: {
-        type: 'string',
-        description: 'Filter by file type: md, txt, pdf, tex, rst',
       },
       limit: {
         type: 'number',

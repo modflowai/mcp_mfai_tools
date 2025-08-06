@@ -8,20 +8,7 @@ import type { NeonQueryFunction } from "@neondatabase/serverless";
 
 export const searchExamplesSchema = {
   name: "search_examples",
-  description: `
-    Search for tutorials, workflows, complete implementations, step-by-step guides, and working code examples across MODFLOW/PEST resources.
-    
-    Use when user wants:
-    - Tutorials and how-to guides
-    - Complete working examples  
-    - Step-by-step implementations
-    - Workflow demonstrations
-    - Practical applications
-    - Learning materials
-    
-    Searches primarily FloPy/PyEMU workflow collections with rich metadata including complexity, tags, packages used, and use cases.
-    Available repositories: flopy, pyemu (workflows), mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils (documentation examples).
-  `,
+  description: "Search for tutorials, workflows, complete implementations, step-by-step guides, and working code examples across MODFLOW/PEST resources. Use when user wants: tutorials, working examples, step-by-step implementations, workflow demonstrations, practical applications, or learning materials. Searches primarily FloPy/PyEMU workflow collections with rich metadata. Available repositories: flopy, pyemu (workflows), mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils (documentation examples).",
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,19 +16,9 @@ export const searchExamplesSchema = {
         type: 'string',
         description: 'Search query for examples and tutorials',
       },
-      search_type: {
-        type: 'string',
-        enum: ['text', 'semantic', 'auto'],
-        description: 'Search method: text for keyword matching, semantic for concept similarity, auto for intelligent selection',
-      },
       repository: {
         type: 'string',
         description: 'Repository to search: flopy, pyemu, mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils',
-      },
-      complexity: {
-        type: 'string',
-        enum: ['beginner', 'intermediate', 'advanced'],
-        description: 'Filter by complexity level',
       },
       limit: {
         type: 'number',

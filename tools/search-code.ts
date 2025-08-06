@@ -8,20 +8,7 @@ import type { NeonQueryFunction } from "@neondatabase/serverless";
 
 export const searchCodeSchema = {
   name: "search_code",
-  description: `
-    Search for API details, function signatures, parameter lists, class definitions, and implementation specifics across MODFLOW/PEST code modules.
-    
-    Use when user wants:
-    - API details and function signatures
-    - Parameter lists and types
-    - Class definitions and methods
-    - Implementation specifics
-    - Code structure and organization
-    - Programming interface documentation
-    
-    Searches FloPy/PyEMU module collections with rich metadata including packages, model families, categories, and detailed code analysis.
-    Available repositories: flopy, pyemu (modules), other repos search documentation for code references.
-  `,
+  description: "Search for API details, function signatures, parameter lists, class definitions, and implementation specifics across MODFLOW/PEST code modules. Use when user wants: API details, function signatures, parameter lists, class definitions, implementation specifics, or programming interfaces. Searches FloPy/PyEMU module collections with rich metadata. Available repositories: flopy, pyemu (modules), mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,26 +16,9 @@ export const searchCodeSchema = {
         type: 'string',
         description: 'Search query for code modules and API details',
       },
-      search_type: {
-        type: 'string',
-        enum: ['text', 'semantic', 'auto'],
-        description: 'Search method: text for exact API matching, semantic for conceptual similarity, auto for intelligent selection',
-      },
       repository: {
         type: 'string',
         description: 'Repository to search: flopy, pyemu, mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils',
-      },
-      package_code: {
-        type: 'string',
-        description: 'Filter by FloPy package code (WEL, RIV, GHB, MAW, etc.)',
-      },
-      model_family: {
-        type: 'string',
-        description: 'Filter by FloPy model family (mf6, mfusg, mt3d, etc.)',
-      },
-      category: {
-        type: 'string',
-        description: 'Filter by PyEMU category (core, utils, etc.)',
       },
       limit: {
         type: 'number',
