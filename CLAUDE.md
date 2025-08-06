@@ -109,39 +109,36 @@ wrangler kv:namespace create OAUTH_KV
 
 ## Available MCP Tools
 
-The server provides six comprehensive search tools for MODFLOW/PEST documentation and code:
+The server provides four specialized tools for MODFLOW/PEST documentation and code:
 
-### Phase 1: Foundation Tools
-1. **text_search_repository** - Full-text search with acronym expansion
-   - Searches across all documentation and code repositories
-   - Supports boolean operators, wildcards, and phrase search
-   - Automatically expands acronyms (e.g., "WEL" → "Well")
-
-2. **semantic_search_repository** - AI-powered conceptual search
-   - Uses enhanced text search with semantic weighting
-   - Finds conceptually related content even with different terminology
-   - Ideal for "how to" queries and exploratory research
-
-3. **get_file_content** - Direct file retrieval
-   - Retrieves complete file content by exact filepath
-   - Returns full source code or documentation with metadata
-   - Use after search tools to examine specific files
-
-### Phase 2: Content-Focused Tools
-4. **search_examples** - Tutorial and workflow search
-   - Searches FloPy/PyEMU workflow collections
+### Primary Search Tools (Phase 2)
+1. **search_examples** - Tutorial and workflow search
+   - Searches FloPy/PyEMU workflow collections ONLY
    - Returns tutorials with complexity levels and best use cases
    - Includes package usage and workflow purposes
+   - Best for: Learning materials, step-by-step guides, practical examples
 
-5. **search_code** - API and module search
+2. **search_code** - API and module search
    - Searches FloPy/PyEMU module collections
    - Returns API details, function signatures, and parameters
    - Includes package codes and model families
+   - Best for: Implementation details, class definitions, method signatures
 
-6. **search_documentation** - Theory and reference search
+3. **search_documentation** - Theory and reference search
    - Searches comprehensive documentation repositories
    - Returns mathematical theory and conceptual explanations
    - Includes key concepts and scientific principles
+   - Best for: Understanding concepts, mathematical formulations, reference material
+
+### Utility Tool
+4. **get_file_content** - Direct file retrieval
+   - Retrieves complete file content by exact filepath
+   - Returns full source code or documentation with metadata
+   - Handles all three table types: repository_files, workflows, and modules
+   - Use after search tools to examine specific files in detail
+
+### Legacy Tools (Deprecated)
+The Phase 1 tools (`text_search_repository` and `semantic_search_repository`) have been deprecated and replaced by the more focused Phase 2 tools above.
 
 ## Adding New MCP Tools
 
@@ -234,14 +231,19 @@ import { myNewToolSchema, myNewTool } from "./tools/my-new-tool.js";
 // Register available tools
 const toolsList = [
   {
-    name: textSearchSchema.name,
-    description: textSearchSchema.description,
-    inputSchema: textSearchSchema.inputSchema,
+    name: searchExamplesSchema.name,
+    description: searchExamplesSchema.description,
+    inputSchema: searchExamplesSchema.inputSchema,
   },
   {
-    name: semanticSearchSchema.name,
-    description: semanticSearchSchema.description,
-    inputSchema: semanticSearchSchema.inputSchema,
+    name: searchCodeSchema.name,
+    description: searchCodeSchema.description,
+    inputSchema: searchCodeSchema.inputSchema,
+  },
+  {
+    name: searchDocumentationSchema.name,
+    description: searchDocumentationSchema.description,
+    inputSchema: searchDocumentationSchema.inputSchema,
   },
   {
     name: getFileContentSchema.name,
@@ -259,11 +261,14 @@ const toolsList = [
 3. **Add case handler**:
 ```typescript
 switch (name) {
-  case 'text_search_repository':
-    return await this.handleTextSearchRepository(args);
+  case 'search_examples':
+    return await this.handleSearchExamples(args);
   
-  case 'semantic_search_repository':
-    return await this.handleSemanticSearchRepository(args);
+  case 'search_code':
+    return await this.handleSearchCode(args);
+  
+  case 'search_documentation':
+    return await this.handleSearchDocumentation(args);
   
   case 'get_file_content':
     return await this.handleGetFileContent(args);
@@ -288,7 +293,7 @@ private async handleMyNewTool(args: any) {
 
 5. **Update logging**:
 ```typescript
-console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, myNewToolSchema.name);
+console.log("[MCP] Registered tools:", searchExamplesSchema.name, searchCodeSchema.name, searchDocumentationSchema.name, getFileContentSchema.name, myNewToolSchema.name);
 ```
 
 #### Step 3: Deploy and Test
@@ -344,10 +349,13 @@ mcp__mfaitools__my_new_tool({
 
 ### Tool Categories and Examples
 
-#### Database Query Tools
-- **Text Search**: Full-text search with PostgreSQL and acronym expansion
-- **Semantic Search**: Enhanced search with similarity ranking
-- **Get File Content**: Direct file retrieval by exact path
+#### Content-Focused Search Tools
+- **Search Examples**: Find tutorials, workflows, and practical implementations
+- **Search Code**: Locate API details, function signatures, and class definitions
+- **Search Documentation**: Discover theory, mathematical background, and reference material
+
+#### Utility Tools  
+- **Get File Content**: Direct file retrieval by exact path with full content
 - **Data Extraction**: Retrieve specific records or statistics
 
 #### Analysis Tools
@@ -407,18 +415,21 @@ npx wrangler tail mcp-mfai-tools --format pretty
 - **Check**: OAuth flow completes successfully
 - **Test**: Try with text search tool first to verify auth
 
-### Migration from Reference Implementation
+### Migration Notes
 
-When adapting tools from `.references/`, follow these steps:
+#### Phase 2 Implementation (Current)
+The server now uses specialized content-focused tools that provide better search accuracy:
+- **search_examples**: Dedicated to tutorials and workflows (flopy_workflows, pyemu_workflows tables)
+- **search_code**: Focused on API and module searches (flopy_modules, pyemu_modules tables)  
+- **search_documentation**: Targets theory and reference material (repository_files table)
 
-1. **Extract core logic** from the reference tool
-2. **Adapt imports** for Cloudflare Workers environment
-3. **Replace external dependencies** (e.g., OpenAI SDK) with compatible alternatives
-4. **Simplify complex features** that require additional infrastructure
-5. **Add fallback mechanisms** for missing capabilities
-6. **Test thoroughly** with various inputs
+#### Legacy Phase 1 Tools (Deprecated)
+The original `text_search_repository` and `semantic_search_repository` tools have been deprecated in favor of the more specialized Phase 2 tools. These legacy tools are commented out in the codebase but can be restored if needed.
 
-Example: The semantic search tool uses enhanced text search as a fallback since true embedding-based search requires additional infrastructure not available in the Cloudflare Workers environment.
+#### Database Considerations
+- The database stores full file content (previously truncated at 5000 characters, now fixed)
+- File paths in modules tables include full system paths that are cleaned during retrieval
+- Three distinct table structures: repository_files, workflows, and modules with different column names
 
 ## Database Schema
 

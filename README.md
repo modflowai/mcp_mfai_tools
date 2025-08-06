@@ -7,10 +7,11 @@ A production-ready MCP (Model Context Protocol) server with OAuth authentication
 - **OAuth Authentication** - GitHub and Google sign-in with beautiful login page
 - **HTTP Transport** - Cloudflare Workers deployment
 - **User Access Control** - Allowlist for GitHub usernames and Google emails
-- **Six Comprehensive Search Tools** - Foundation and content-focused search capabilities
+- **Four Specialized Search Tools** - Content-focused search capabilities for tutorials, code, and documentation
 - **Beautiful Login UI** - Glass-morphism design with provider selection
-- **Intelligent Search** - Acronym expansion and semantic understanding
+- **Intelligent Search** - Smart tool selection based on query intent
 - **Rich Metadata** - Returns complexity levels, best use cases, and recommendations
+- **Full File Content** - Complete file retrieval without truncation
 
 ## Live Deployment
 
@@ -28,12 +29,12 @@ mcp_mfai_tools/
 ├── utils.ts                   # OAuth utility functions
 ├── workers-oauth-utils.ts     # UI rendering utilities
 ├── tools/
-│   ├── text-search.ts         # Full-text search with acronym expansion
-│   ├── semantic-search.ts     # Enhanced semantic search with similarity ranking
+│   ├── search-examples.ts     # Tutorial and workflow search (Phase 2)
+│   ├── search-code.ts         # API and module search (Phase 2)
+│   ├── search-documentation.ts # Theory and reference search (Phase 2)
 │   ├── get-file-content.ts    # Direct file content retrieval
-│   ├── search-examples.ts     # Tutorial and workflow search
-│   ├── search-code.ts         # API and module search
-│   ├── search-documentation.ts # Theory and reference search
+│   ├── text-search.ts         # [DEPRECATED] Full-text search
+│   ├── semantic-search.ts     # [DEPRECATED] Semantic search
 │   └── acronym-mappings.json  # Acronym expansions
 ├── examples/
 │   └── simple-mcp-client.js   # Simple test client for development
@@ -188,56 +189,41 @@ const DEFAULT_ALLOWED_EMAILS = [
 
 ## Available Tools
 
-### Phase 1: Foundation Tools
+### Primary Search Tools
 
-#### 1. text_search_repository
-- **Purpose**: Full-text search across MODFLOW/PEST documentation
-- **Features**: Exact keyword matching with acronym expansion, Boolean operators, wildcards
-- **Input**: `query` (required), `repository` (optional), `file_type` (optional), `limit` (optional), `include_content` (optional)
-- **Best for**: Finding specific functions, classes, variables, or exact terminology
-- **Example**: Search for "WEL" automatically expands to include "Well Package" results
-
-#### 2. semantic_search_repository
-- **Purpose**: Semantic search using enhanced text analysis and similarity ranking
-- **Features**: Conceptual similarity search, summary-based evaluation, smart content retrieval
-- **Input**: `query` (required), `repository` (optional), `limit` (optional) 
-- **Best for**: Finding conceptually related content even when exact keywords don't match
-- **Example**: Search for "groundwater flow modeling" finds related documentation about flow packages, discretization, and solver configuration
-- **Note**: Currently uses enhanced text search as fallback (true semantic embeddings require additional infrastructure)
-
-#### 3. get_file_content
-- **Purpose**: Retrieve complete content of a specific file by its exact path
-- **Features**: Direct file access, full content retrieval, supports all file types in the database
-- **Input**: `repository` (required), `filepath` (required)
-- **Best for**: Getting the complete content when you know the exact file path
-- **Example**: Retrieve `mf6io/well_wel_package.md` from the `mf6` repository
-- **Note**: File paths must match exactly as stored in the database
-
-### Phase 2: Content-Focused Tools
-
-#### 4. search_examples
+#### 1. search_examples
 - **Purpose**: Search for tutorials, workflows, and complete implementations
 - **Features**: Returns complexity levels, best use cases, workflow purposes
-- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Input**: `query` (required), `repository` (optional: flopy, pyemu), `limit` (optional: 1-50)
 - **Best for**: Finding tutorials, working examples, step-by-step implementations
-- **Example**: Search for "well package tutorial" returns FloPy/PyEMU workflows
-- **Repositories**: Searches flopy_workflows, pyemu_workflows, and documentation examples
+- **Example**: Search for "MAW multi-aquifer well" returns FloPy/PyEMU workflows
+- **Tables**: Searches ONLY flopy_workflows and pyemu_workflows tables
 
-#### 5. search_code
+#### 2. search_code
 - **Purpose**: Search for API details, function signatures, and class definitions
-- **Features**: Returns package codes, model families, parameter lists
-- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Features**: Returns package codes, model families, parameter lists, semantic purpose
+- **Input**: `query` (required), `repository` (optional: flopy, pyemu), `limit` (optional: 1-50)
 - **Best for**: Finding API documentation, implementation specifics, programming interfaces
-- **Example**: Search for "WEL package parameters" returns module documentation
-- **Repositories**: Searches flopy_modules, pyemu_modules, and code references
+- **Example**: Search for "mfparbc MODFLOW parameter" returns module documentation
+- **Tables**: Searches ONLY flopy_modules and pyemu_modules tables
 
-#### 6. search_documentation
+#### 3. search_documentation
 - **Purpose**: Search for theory, mathematical background, and conceptual explanations
 - **Features**: Returns key concepts, scientific principles, reference guides
-- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Input**: `query` (required), `repository` (optional), `limit` (optional: 1-50)
 - **Best for**: Finding theoretical foundations, mathematical formulations, technical explanations
 - **Example**: Search for "hydraulic conductivity theory" returns conceptual documentation
-- **Repositories**: Comprehensive documentation including MODFLOW 6, PEST, PEST++, MODFLOW-USG
+- **Tables**: Searches repository_files table across all documentation repositories
+
+### Utility Tool
+
+#### 4. get_file_content
+- **Purpose**: Retrieve complete content of a specific file by its exact path
+- **Features**: Direct file access, full content retrieval (no 5000 char truncation)
+- **Input**: `repository` (required), `filepath` (required)
+- **Best for**: Getting the complete content when you know the exact file path
+- **Example**: Retrieve `flopy/modflow/mfparbc.py` from the `flopy` repository
+- **Tables**: Automatically routes to correct table (repository_files, workflows, or modules)
 
 ### Supported Repositories
 
@@ -392,6 +378,21 @@ See [CLAUDE.md](./CLAUDE.md) for comprehensive documentation on adding tools.
 ### OAuth callback errors
 - Verify OAuth app redirect URLs match your worker URL
 - Check Client ID and Secret are correctly set
+
+## Recent Changes
+
+### Phase 2 Implementation (Current)
+- **New specialized tools**: `search_examples`, `search_code`, `search_documentation` for better focused searches
+- **Deprecated legacy tools**: `text_search_repository` and `semantic_search_repository` (commented out)
+- **Fixed database truncation**: Files now retrieved in full (previously truncated at 5000 chars)
+- **Improved file path handling**: Module paths cleaned automatically (removes system-specific prefixes)
+- **Better table routing**: Correctly handles three table types (repository_files, workflows, modules)
+
+### Known Issues Fixed
+- ✅ File content truncation at 5000 characters
+- ✅ Module file paths with system prefixes
+- ✅ Incorrect table routing for workflows/modules
+- ✅ Column name mismatches between table types
 
 ## License
 

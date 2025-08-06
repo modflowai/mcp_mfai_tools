@@ -8,7 +8,7 @@ import type { NeonQueryFunction } from "@neondatabase/serverless";
 
 export const searchExamplesSchema = {
   name: "search_examples",
-  description: "Search for tutorials, workflows, complete implementations, step-by-step guides, and working code examples across MODFLOW/PEST resources. Use when user wants: tutorials, working examples, step-by-step implementations, workflow demonstrations, practical applications, or learning materials. Searches primarily FloPy/PyEMU workflow collections with rich metadata. Available repositories: flopy, pyemu (workflows), mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils (documentation examples).",
+  description: "Search for tutorials, workflows, complete implementations, step-by-step guides, and working code examples. Use when user wants: tutorials, working examples, step-by-step implementations, workflow demonstrations, practical applications, or learning materials. Searches ONLY FloPy and PyEMU workflow tables (flopy_workflows, pyemu_workflows) with rich metadata including complexity levels, best use cases, and packages used. Available repositories: flopy, pyemu.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -18,7 +18,7 @@ export const searchExamplesSchema = {
       },
       repository: {
         type: 'string',
-        description: 'Repository to search: flopy, pyemu, mf6, pest, pestpp, pest_hp, mfusg, plproc, gwutils',
+        description: 'Repository to search: flopy, pyemu',
       },
       limit: {
         type: 'number',
@@ -159,45 +159,6 @@ async function searchWorkflowsWithText(query: string, sql: NeonQueryFunction<fal
   return results.flat().sort((a: any, b: any) => (b.search_rank || 0) - (a.search_rank || 0));
 }
 
-// Search documentation examples with text method
-async function searchDocumentationExamples(query: string, sql: NeonQueryFunction<false, false>, repository?: string, limit: number = 5) {
-  const repositories = repository ? [repository] : ['mf6', 'pest', 'pestpp', 'pest_hp', 'mfusg', 'plproc', 'gwutils'];
-  const docRepos = repositories.filter(r => !['flopy', 'pyemu'].includes(r));
-  
-  if (docRepos.length === 0) return [];
-  
-  const repoFilter = docRepos.map(r => `'${r}'`).join(', ');
-  
-  const queryStr = `
-    SELECT 
-      rf.filepath,
-      rf.repo_name,
-      rf.analysis->>'title' as title,
-      rf.analysis->>'summary' as summary,
-      ts_rank_cd(
-        to_tsvector('english', rf.content),
-        plainto_tsquery('english', $1)
-      ) as search_rank,
-      ts_headline('english', rf.content,
-        plainto_tsquery('english', $1),
-        'MaxWords=20, MinWords=10, MaxFragments=1'
-      ) as snippet,
-      'documentation' as search_source
-    FROM repository_files rf
-    WHERE rf.repo_name = ANY($2)
-    AND (
-      lower(rf.filepath) LIKE '%example%'
-      OR lower(rf.filepath) LIKE '%tutorial%'
-      OR lower(rf.analysis->>'title') LIKE '%example%'
-      OR to_tsvector('english', rf.content) @@ plainto_tsquery('english', $1)
-    )
-    ORDER BY search_rank DESC
-    LIMIT $3
-  `;
-  
-  return await sql.query(queryStr, [query, docRepos, limit]);
-}
-
 // Search workflows with semantic method  
 async function searchWorkflowsWithEmbeddings(query: string, sql: NeonQueryFunction<false, false>, repository?: string, complexity?: string, limit: number = 10) {
   // For now, fall back to text search with enhanced ranking
@@ -227,22 +188,19 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     }
 
     const method = selectSearchMethod(query, search_type);
-    const workflowLimit = Math.floor(limit * 0.8); // 80% workflows
-    const docLimit = Math.ceil(limit * 0.2); // 20% documentation examples
     
     console.log(`[SEARCH EXAMPLES] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, Complexity: ${complexity || 'any'}`);
 
     let workflowResults: any[] = [];
-    let docResults: any[] = [];
     
     if (method === 'semantic') {
-      workflowResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, workflowLimit);
+      workflowResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, limit);
     } else if (method === 'text') {
-      workflowResults = await searchWorkflowsWithText(query, sql, repository, complexity, workflowLimit);
+      workflowResults = await searchWorkflowsWithText(query, sql, repository, complexity, limit);
     } else {
       // Hybrid: combine both methods
-      const semanticResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, Math.ceil(workflowLimit / 2));
-      const textResults = await searchWorkflowsWithText(query, sql, repository, complexity, Math.ceil(workflowLimit / 2));
+      const semanticResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, Math.ceil(limit / 2));
+      const textResults = await searchWorkflowsWithText(query, sql, repository, complexity, Math.ceil(limit / 2));
       
       // Merge and deduplicate
       const seen = new Set();
@@ -254,13 +212,8 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       });
     }
     
-    // Add documentation examples if not repository-specific or if targeting doc repos
-    if (!repository || !['flopy', 'pyemu'].includes(repository)) {
-      docResults = await searchDocumentationExamples(query, sql, repository, docLimit);
-    }
-    
-    // Combine and rank results
-    const allResults = [...workflowResults, ...docResults]
+    // ONLY return workflow results - NO documentation
+    const allResults = workflowResults
       .sort((a, b) => (b.similarity_score || b.search_rank || 0) - (a.similarity_score || a.search_rank || 0))
       .slice(0, limit);
 

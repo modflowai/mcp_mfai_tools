@@ -13,6 +13,179 @@ interface FileAnalysis {
   purpose?: string;
 }
 
+// Try multiple search strategies to find the file
+async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>, repository: string, filepath: string, primaryTable: string, primaryColumn: string) {
+  const strategies = [];
+  
+  if (repository === 'flopy' || repository === 'pyemu') {
+    // Strategy 1: Primary table (determined by heuristics)
+    strategies.push({ table: primaryTable, column: primaryColumn, query: filepath });
+    
+    // Strategy 2: Try exact match in modules table (for full paths)
+    if (primaryTable !== `${repository}_modules`) {
+      strategies.push({ 
+        table: `${repository}_modules`, 
+        column: 'file_path', 
+        query: filepath 
+      });
+    }
+    
+    // Strategy 3: Try partial match in modules table (for relative paths)
+    if (primaryTable !== `${repository}_modules`) {
+      strategies.push({ 
+        table: `${repository}_modules`, 
+        column: 'file_path', 
+        query: `%${filepath}` // LIKE pattern
+      });
+    }
+    
+    // Strategy 4: Try workflows table
+    const workflowTable = `${repository}_workflows`;
+    const workflowColumn = repository === 'flopy' ? 'tutorial_file' : 'notebook_file';
+    if (primaryTable !== workflowTable) {
+      strategies.push({ table: workflowTable, column: workflowColumn, query: filepath });
+    }
+    
+    // Strategy 5: Try repository_files
+    if (primaryTable !== 'repository_files') {
+      strategies.push({ table: 'repository_files', column: 'filepath', query: filepath });
+    }
+  } else {
+    // For documentation repositories, only try repository_files
+    strategies.push({ table: 'repository_files', column: 'filepath', query: filepath });
+  }
+  
+  // Execute strategies in order until we find a result
+  for (const strategy of strategies) {
+    console.log(`[GET FILE] Trying ${strategy.table}.${strategy.column} with query: ${strategy.query}`);
+    
+    try {
+      let result;
+      
+      if (strategy.table === 'repository_files') {
+        if (strategy.query.startsWith('%')) {
+          // Use LIKE for partial matches
+          result = await sql`
+            SELECT 
+              content::text as content,
+              analysis,
+              filepath,
+              file_type,
+              created_at,
+              length(content) as file_size
+            FROM repository_files
+            WHERE repo_name = ${repository}
+              AND filepath LIKE ${strategy.query}
+          `;
+        } else {
+          // Exact match
+          result = await sql`
+            SELECT 
+              content::text as content,
+              analysis,
+              filepath,
+              file_type,
+              created_at,
+              length(content) as file_size
+            FROM repository_files
+            WHERE repo_name = ${repository}
+              AND filepath = ${strategy.query}
+          `;
+        }
+      } else if (strategy.table === 'flopy_workflows') {
+        result = await sql`
+          SELECT 
+            source_code::text as content,
+            description as analysis,
+            tutorial_file as filepath,
+            'workflow' as file_type,
+            NULL as created_at,
+            length(source_code) as file_size,
+            complexity,
+            model_type as workflow_type,
+            packages_used,
+            workflow_purpose,
+            best_use_cases,
+            title
+          FROM flopy_workflows
+          WHERE tutorial_file = ${strategy.query}
+        `;
+      } else if (strategy.table === 'pyemu_workflows') {
+        result = await sql`
+          SELECT 
+            source_code::text as content,
+            description as analysis,
+            notebook_file as filepath,
+            'workflow' as file_type,
+            NULL as created_at,
+            length(source_code) as file_size,
+            complexity,
+            workflow_type,
+            pyemu_modules as packages_used,
+            workflow_purpose,
+            common_applications as best_use_cases,
+            title
+          FROM pyemu_workflows
+          WHERE notebook_file = ${strategy.query}
+        `;
+      } else if (strategy.table === 'flopy_modules' || strategy.table === 'pyemu_modules') {
+        if (strategy.query.startsWith('%')) {
+          // Use LIKE for partial matches
+          result = await sql.query(`
+            SELECT 
+              source_code::text as content,
+              module_docstring as analysis,
+              CASE 
+                WHEN file_path LIKE '/home/danilopezmella/%'
+                THEN regexp_replace(file_path, '^/home/danilopezmella/[^/]+/[^/]+/', '')
+                ELSE file_path
+              END as filepath,
+              'module' as file_type,
+              NULL as created_at,
+              length(source_code) as file_size,
+              ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
+              ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
+              semantic_purpose
+            FROM ${strategy.table}
+            WHERE file_path LIKE $1
+          `, [strategy.query]);
+        } else {
+          // For exact match, also try with the full path prefix pattern
+          const fullPathPattern = `/home/danilopezmella/%/${strategy.query}`;
+          result = await sql.query(`
+            SELECT 
+              source_code::text as content,
+              module_docstring as analysis,
+              CASE 
+                WHEN file_path LIKE '/home/danilopezmella/%'
+                THEN regexp_replace(file_path, '^/home/danilopezmella/[^/]+/[^/]+/', '')
+                ELSE file_path
+              END as filepath,
+              'module' as file_type,
+              NULL as created_at,
+              length(source_code) as file_size,
+              ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
+              ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
+              semantic_purpose
+            FROM ${strategy.table}
+            WHERE file_path = $1 OR file_path LIKE $2
+          `, [strategy.query, fullPathPattern]);
+        }
+      }
+      
+      if (result && result.length > 0) {
+        console.log(`[GET FILE] Found file in ${strategy.table}.${strategy.column}`);
+        return result;
+      }
+    } catch (error) {
+      console.log(`[GET FILE] Error querying ${strategy.table}: ${error}`);
+      continue;
+    }
+  }
+  
+  return null;
+}
+
 // Tool schema definition
 export const getFileContentSchema = {
   name: "get_file_content",
@@ -55,31 +228,49 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
 
     console.log('[GET FILE] Retrieving file:', filepath, 'from repository:', repository);
 
-    // For FloPy and PyEMU, check specialized tables first (when implemented)
     let result;
+    let tableName: string;
+    let fileColumn: string;
     
-    // Note: For now we'll focus on the main repository_files table
-    // In the future, specialized flopy_modules, flopy_workflows, pyemu_modules, pyemu_workflows tables could be added
+    // Determine which table to query based on repository and file type
+    if (repository === 'flopy' || repository === 'pyemu') {
+      // Strategy: Try multiple tables in order of likelihood
+      // 1. First try as a module file (most common search result type)
+      // 2. Then try as workflow/tutorial file  
+      // 3. Finally try repository_files
+      
+      // Check if it looks like a full path (contains the repo name in path)
+      const isFullPath = filepath.includes(`/${repository}/`);
+      
+      if (isFullPath || (filepath.endsWith('.py') && !filepath.includes('Notebooks/') && !filepath.includes('.ipynb'))) {
+        // Try modules first for .py files that aren't notebooks
+        tableName = repository === 'flopy' ? 'flopy_modules' : 'pyemu_modules';
+        fileColumn = 'file_path';
+      } else if (filepath.includes('Notebooks/') || filepath.endsWith('.ipynb') || filepath.includes('example')) {
+        // Try workflows for notebooks and examples
+        tableName = repository === 'flopy' ? 'flopy_workflows' : 'pyemu_workflows';
+        fileColumn = repository === 'flopy' ? 'tutorial_file' : 'notebook_file';
+      } else {
+        // Default to repository_files for other files
+        tableName = 'repository_files';
+        fileColumn = 'filepath';
+      }
+    } else {
+      // Documentation repositories use repository_files
+      tableName = 'repository_files';
+      fileColumn = 'filepath';
+    }
     
-    // Try repository_files table
-    result = await sql`
-      SELECT 
-        content,
-        analysis,
-        filepath,
-        file_type,
-        created_at,
-        length(content) as file_size
-      FROM repository_files
-      WHERE repo_name = ${repository}
-        AND filepath = ${filepath}
-    `;
+    console.log(`[GET FILE] Attempting to query table: ${tableName}, column: ${fileColumn}`);
+    
+    // Try multiple search strategies with fallback
+    result = await tryMultipleSearchStrategies(sql, repository, filepath, tableName, fileColumn);
 
     if (!result || result.length === 0) {
       return {
         content: [{
           type: "text" as const,
-          text: `File not found: "${filepath}" in repository "${repository}"\n\nPlease verify the exact file path. You can use the search tools to find the correct path.`
+          text: `File not found: "${filepath}" in repository "${repository}"\n\nSearched in multiple tables but could not locate the file. Please verify the exact file path using the search tools.`
         }]
       };
     }
@@ -119,6 +310,9 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     if (file.created_at) {
       outputText += `**Created:** ${new Date(file.created_at).toISOString()}\n`;
     }
+    if (file.title) {
+      outputText += `**Title:** ${file.title}\n`;
+    }
 
     // Add analysis if available
     if (analysis.summary) {
@@ -133,12 +327,43 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     if (analysis.key_concepts && analysis.key_concepts.length > 0) {
       outputText += `**Key Concepts:** ${analysis.key_concepts.join(', ')}\n`;
     }
+    
+    // Add workflow-specific metadata
+    if (file.complexity) {
+      outputText += `**Complexity:** ${file.complexity}\n`;
+    }
+    if (file.workflow_type) {
+      outputText += `**Workflow Type:** ${file.workflow_type}\n`;
+    }
+    if (file.packages_used && Array.isArray(file.packages_used)) {
+      outputText += `**Packages Used:** ${file.packages_used.join(', ')}\n`;
+    }
+    if (file.workflow_purpose) {
+      outputText += `**Workflow Purpose:** ${file.workflow_purpose}\n`;
+    }
+    
+    // Add module-specific metadata
+    if (file.package_code) {
+      outputText += `**Package Code:** ${file.package_code}\n`;
+    }
+    if (file.model_family) {
+      outputText += `**Model Family:** ${file.model_family}\n`;
+    }
+    if (file.semantic_purpose) {
+      outputText += `**Semantic Purpose:** ${file.semantic_purpose}\n`;
+    }
+    if (file.best_use_cases && Array.isArray(file.best_use_cases)) {
+      outputText += `**Best Use Cases:**\n`;
+      file.best_use_cases.forEach((useCase: string) => {
+        outputText += `  - ${useCase}\n`;
+      });
+    }
 
     outputText += `\n---\n\n`;
 
     // Add file content
     if (file.content) {
-      // For very large files, we might want to truncate or warn
+      // For very large files, we might want to warn
       if (file.content.length > 50000) {
         outputText += `⚠️ **Large File Warning:** This file is ${file.content.length} characters long. Content shown below:\n\n`;
       }
