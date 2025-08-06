@@ -15,20 +15,29 @@ interface SearchResultItem {
   title?: string;
   content_snippet?: string;
   content_preview?: string;
+  // Module-specific fields
+  module_name?: string;
+  package_code?: string;
+  model_family?: string;
+  category?: string;
+  user_scenarios?: string[];
+  related_concepts?: string[];
+  pest_integration?: string[];
+  use_cases?: string[];
+  search_source?: 'documentation' | 'modules';
 }
 
 // Tool schema definition
 export const textSearchSchema = {
   name: "text_search_repository",
   description: `
-    Perform full-text search across MODFLOW/PEST documentation repository files using PostgreSQL's powerful search capabilities.
+    Perform full-text search across MODFLOW/PEST repository files using PostgreSQL's powerful search capabilities.
     This tool finds exact keyword matches and uses advanced text ranking for relevance.
-    Best for finding specific functions, classes, variables, or exact terminology in documentation.
+    Best for finding specific functions, classes, variables, or exact terminology.
     
-    IMPORTANT: This tool searches ONLY documentation repositories, not code repositories.
-    For code search, use different approaches for FloPy/PyEMU modules.
+    Available repositories:
     
-    Available documentation repositories:
+    Documentation repositories:
     - mfusg: MODFLOW-USG (Unstructured Grid) documentation
     - pest: Parameter Estimation package documentation  
     - pestpp: PEST++ enhanced version documentation
@@ -37,12 +46,18 @@ export const textSearchSchema = {
     - plproc: Parameter list processor documentation
     - gwutils: Groundwater data utilities documentation
     
+    Code module repositories (with rich metadata):
+    - flopy: FloPy Python modules with package codes, model families, user scenarios
+    - pyemu: PyEMU Python modules with categories, PEST integration, use cases
+    
     Search features:
     - Exact keyword matching with acronym expansion
     - Multi-word phrase search
     - Boolean operators (AND, OR, NOT)
     - Wildcard search with * and ?
     - Case-insensitive search
+    - For FloPy/PyEMU: searches modules with full source code and metadata
+    - For other repos: searches documentation with content
   `,
   inputSchema: {
     type: 'object',
@@ -53,7 +68,7 @@ export const textSearchSchema = {
       },
       repository: {
         type: 'string',
-        description: 'Specific documentation repository to search (mfusg, pest, pestpp, pest_hp, mf6, plproc, gwutils). If not specified, searches all documentation repositories.',
+        description: 'Repository to search: Documentation (mfusg, pest, pestpp, pest_hp, mf6, plproc, gwutils) or Code modules (flopy, pyemu). If not specified, searches all repositories.',
       },
       file_type: {
         type: 'string',
@@ -86,18 +101,19 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       throw new Error('Search query too long. Please limit to 500 characters');
     }
 
-    // Validate repository if specified - exclude code repos (flopy, pyemu)
-    const validRepos = ['mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
+    // Validate repository if specified
+    const docRepos = ['mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
     const codeRepos = ['flopy', 'pyemu'];
+    const allRepos = [...docRepos, ...codeRepos];
     
-    if (repository) {
-      if (codeRepos.includes(repository)) {
-        throw new Error(`'${repository}' is a code repository. Use different tools for FloPy/PyEMU code search. Available documentation repositories: ${validRepos.join(', ')}`);
-      }
-      if (!validRepos.includes(repository)) {
-        throw new Error(`Invalid repository '${repository}'. Valid documentation repositories: ${validRepos.join(', ')}`);
-      }
+    if (repository && !allRepos.includes(repository)) {
+      throw new Error(`Invalid repository '${repository}'. Valid repositories: ${allRepos.join(', ')}`);
     }
+    
+    // Determine search strategy
+    const isCodeRepo = repository && codeRepos.includes(repository);
+    const isDocRepo = repository && docRepos.includes(repository);
+    const searchAllRepos = !repository;
 
     // Prepare search query - convert to PostgreSQL full-text search format  
     let searchTerm = query.trim();
@@ -147,94 +163,26 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     let results;
     
     console.log('[TEXT SEARCH] About to execute SQL query');
+    console.log('[TEXT SEARCH] Strategy:', isCodeRepo ? 'modules' : isDocRepo ? 'documentation' : 'hybrid');
     
-    // Most common case - search all docs with content
-    if (!repository && !file_type && include_content) {
-      console.log('[TEXT SEARCH] Using default query path (all docs with content)');
-      results = await sql`
-        SELECT filepath, repo_name, file_type, created_at, 
-               COALESCE(analysis->>'title', '') as title,
-               ts_rank(
-                 COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-                 setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
-                 to_tsquery('english', ${searchTerm})
-               ) as relevance_score,
-               ts_headline('english', 
-                 COALESCE(analysis->>'title', '') || ' ' || COALESCE(content, ''), 
-                 to_tsquery('english', ${searchTerm}), 
-                 'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
-               ) as content_snippet,
-               CASE 
-                 WHEN length(content) > 300 THEN left(content, 300) || '...'
-                 ELSE content
-               END as content_preview
-        FROM repository_files
-        WHERE (
-          COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-          setweight(to_tsvector('english', COALESCE(content, '')), 'C')
-        ) @@ to_tsquery('english', ${searchTerm}) 
-          AND repo_name NOT IN ('flopy', 'pyemu')
-        ORDER BY relevance_score DESC, created_at DESC 
-        LIMIT ${limit}
-      `;
-      console.log('[TEXT SEARCH] SQL query completed, results:', results?.length || 0);
-    } else if (repository) {
-      // Search specific repository
-      results = await sql`
-        SELECT filepath, repo_name, file_type, created_at, 
-               COALESCE(analysis->>'title', '') as title,
-               ts_rank(
-                 COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-                 setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
-                 to_tsquery('english', ${searchTerm})
-               ) as relevance_score,
-               ${include_content ? sql`ts_headline('english', 
-                 COALESCE(analysis->>'title', '') || ' ' || COALESCE(content, ''), 
-                 to_tsquery('english', ${searchTerm}), 
-                 'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
-               ) as content_snippet,
-               CASE 
-                 WHEN length(content) > 300 THEN left(content, 300) || '...'
-                 ELSE content
-               END as content_preview` : sql`null as content_snippet, null as content_preview`}
-        FROM repository_files
-        WHERE (
-          COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-          setweight(to_tsvector('english', COALESCE(content, '')), 'C')
-        ) @@ to_tsquery('english', ${searchTerm}) 
-          AND repo_name = ${repository}
-        ORDER BY relevance_score DESC, created_at DESC 
-        LIMIT ${limit}
-      `;
+    // Execute search based on repository type
+    if (isCodeRepo) {
+      // Search code modules
+      results = await searchModulesWithText(sql, repository, searchTerm, limit, include_content);
+    } else if (isDocRepo) {
+      // Search specific documentation repository
+      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
+    } else if (searchAllRepos) {
+      // Hybrid search - both docs and modules
+      const docResults = await searchDocumentationWithText(sql, null, searchTerm, file_type, Math.ceil(limit / 2), include_content);
+      const moduleResults = await searchAllModulesWithText(sql, searchTerm, Math.floor(limit / 2), include_content);
+      results = [...docResults, ...moduleResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
     } else {
-      // Search all documentation repos without content
-      results = await sql`
-        SELECT filepath, repo_name, file_type, created_at, 
-               COALESCE(analysis->>'title', '') as title,
-               ts_rank(
-                 COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-                 setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
-                 to_tsquery('english', ${searchTerm})
-               ) as relevance_score,
-               ${include_content ? sql`ts_headline('english', 
-                 COALESCE(analysis->>'title', '') || ' ' || COALESCE(content, ''), 
-                 to_tsquery('english', ${searchTerm}), 
-                 'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
-               ) as content_snippet,
-               CASE 
-                 WHEN length(content) > 300 THEN left(content, 300) || '...'
-                 ELSE content
-               END as content_preview` : sql`null as content_snippet, null as content_preview`}
-        FROM repository_files
-        WHERE (
-          COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-          setweight(to_tsvector('english', COALESCE(content, '')), 'C')
-        ) @@ to_tsquery('english', ${searchTerm}) 
-          AND repo_name NOT IN ('flopy', 'pyemu')
-        ORDER BY relevance_score DESC, created_at DESC 
-        LIMIT ${limit}
-      `;
+      // Fallback to original logic for edge cases
+      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
     }
+    
+    console.log('[TEXT SEARCH] SQL query completed, results:', results?.length || 0);
 
     if (!results || (Array.isArray(results) && results.length === 0)) {
       return {
@@ -255,6 +203,9 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       ? resultsArray.reduce((sum: number, r: any) => sum + r.relevance_score, 0) / resultsArray.length
       : 0;
 
+    const moduleCount = resultsArray.filter((r: any) => r.search_source === 'modules').length;
+    const docCount = resultsArray.filter((r: any) => r.search_source === 'documentation').length;
+
     // Format output for MCP
     let outputText = `Found ${resultsArray.length} result${resultsArray.length !== 1 ? 's' : ''} for "${query}"`;
     if (repository) outputText += ` in ${repository}`;
@@ -262,12 +213,32 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
 
     outputText += `Summary:\n`;
     outputText += `- Average relevance: ${avgRelevance.toFixed(3)}\n`;
+    outputText += `- Sources: ${docCount} docs, ${moduleCount} modules\n`;
     outputText += `- Repositories: ${uniqueRepos.join(', ')}\n`;
-    outputText += `- File types: ${uniqueTypes.join(', ')}\n\n`;
+    if (uniqueTypes.length > 0) {
+      outputText += `- File types: ${uniqueTypes.join(', ')}\n`;
+    }
+    outputText += `\n`;
 
     outputText += `Results:\n`;
     resultsArray.forEach((result: any, index: number) => {
-      outputText += `${index + 1}. **${result.filepath}** (${result.repo_name})\n`;
+      outputText += `${index + 1}. **${result.filepath}** (${result.repo_name}${result.search_source ? ` - ${result.search_source}` : ''})\n`;
+      
+      // Module-specific metadata
+      if (result.module_name) {
+        outputText += `   Module: ${result.module_name}\n`;
+      }
+      if (result.package_code) {
+        outputText += `   Package: ${result.package_code}\n`;
+      }
+      if (result.model_family) {
+        outputText += `   Model Family: ${result.model_family}\n`;
+      }
+      if (result.category) {
+        outputText += `   Category: ${result.category}\n`;
+      }
+      
+      // Standard fields
       if (result.title) {
         outputText += `   Title: ${result.title}\n`;
       }
@@ -275,6 +246,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       if (result.content_snippet) {
         outputText += `   Snippet: ${result.content_snippet}\n`;
       }
+      
       outputText += `\n`;
     });
 
@@ -293,4 +265,168 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       }]
     };
   }
+}
+
+// Helper functions for module search
+async function searchModulesWithText(
+  sql: NeonQueryFunction<false, false>,
+  repository: string,
+  searchTerm: string,
+  limit: number,
+  include_content: boolean
+): Promise<SearchResultItem[]> {
+  let results;
+  if (repository === 'flopy') {
+    const queryString = `
+      SELECT 
+        relative_path as filepath,
+        '${repository}' as repo_name,
+        'py' as file_type,
+        module_name,
+        package_code,
+        model_family,
+        semantic_purpose as title,
+        semantic_purpose as summary,
+        user_scenarios,
+        related_concepts,
+        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ${include_content ? `
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        ts_headline('english', 
+          COALESCE(semantic_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
+          to_tsquery('english', $1), 
+          'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+        ) as content_snippet
+        ` : `
+        null as content_preview,
+        null as content_snippet
+        `},
+        'modules' as search_source
+      FROM flopy_modules
+      WHERE search_vector @@ to_tsquery('english', $1)
+      ORDER BY relevance_score DESC
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, [searchTerm]);
+  } else {
+    // PyEMU
+    const queryString = `
+      SELECT 
+        relative_path as filepath,
+        '${repository}' as repo_name,
+        'py' as file_type,
+        module_name,
+        NULL as package_code,
+        NULL as model_family,
+        category,
+        semantic_purpose as title,
+        semantic_purpose as summary,
+        pest_integration,
+        use_cases,
+        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ${include_content ? `
+        CASE 
+          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
+          ELSE embedding_text
+        END as content_preview,
+        ts_headline('english', 
+          COALESCE(semantic_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
+          to_tsquery('english', $1), 
+          'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+        ) as content_snippet
+        ` : `
+        null as content_preview,
+        null as content_snippet
+        `},
+        'modules' as search_source
+      FROM pyemu_modules
+      WHERE search_vector @@ to_tsquery('english', $1)
+      ORDER BY relevance_score DESC
+      LIMIT ${limit}
+    `;
+    results = await sql.query(queryString, [searchTerm]);
+  }
+  
+  return Array.isArray(results) ? results as SearchResultItem[] : [];
+}
+
+async function searchDocumentationWithText(
+  sql: NeonQueryFunction<false, false>,
+  repository: string | null,
+  searchTerm: string,
+  file_type: string | undefined,
+  limit: number,
+  include_content: boolean
+): Promise<SearchResultItem[]> {
+  // Build conditions
+  let whereClause = `WHERE (
+    COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
+    setweight(to_tsvector('english', COALESCE(content, '')), 'C')
+  ) @@ to_tsquery('english', $1)`;
+  const queryParams = [searchTerm];
+  
+  if (repository) {
+    whereClause += ' AND repo_name = $' + (queryParams.length + 1);
+    queryParams.push(repository);
+  } else {
+    whereClause += " AND repo_name NOT IN ('flopy', 'pyemu')";
+  }
+  
+  if (file_type) {
+    whereClause += ' AND file_type = $' + (queryParams.length + 1);
+    queryParams.push(file_type);
+  }
+  
+  const queryString = `
+    SELECT 
+      filepath, 
+      repo_name, 
+      file_type, 
+      created_at, 
+      COALESCE(analysis->>'title', '') as title,
+      ts_rank(
+        COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
+        setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
+        to_tsquery('english', $1)
+      ) as relevance_score,
+      ${include_content ? `
+      ts_headline('english', 
+        COALESCE(analysis->>'title', '') || ' ' || COALESCE(content, ''), 
+        to_tsquery('english', $1), 
+        'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+      ) as content_snippet,
+      CASE 
+        WHEN length(content) > 300 THEN left(content, 300) || '...'
+        ELSE content
+      END as content_preview
+      ` : `
+      null as content_snippet,
+      null as content_preview
+      `},
+      'documentation' as search_source
+    FROM repository_files
+    ${whereClause}
+    ORDER BY relevance_score DESC, created_at DESC 
+    LIMIT ${limit}
+  `;
+  
+  const results = await sql.query(queryString, queryParams);
+  return Array.isArray(results) ? results as SearchResultItem[] : [];
+}
+
+async function searchAllModulesWithText(
+  sql: NeonQueryFunction<false, false>,
+  searchTerm: string,
+  limit: number,
+  include_content: boolean
+): Promise<SearchResultItem[]> {
+  const floepyResults = await searchModulesWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content);
+  const pyemuResults = await searchModulesWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content);
+  
+  return [...floepyResults, ...pyemuResults]
+    .sort((a, b) => b.relevance_score - a.relevance_score)
+    .slice(0, limit);
 }
