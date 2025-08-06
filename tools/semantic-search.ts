@@ -140,8 +140,6 @@ export async function semanticSearchTool(args: any, sql: NeonQueryFunction<false
 
     // Generate query embedding if OpenAI key is available
     let queryEmbedding: number[] | null = null;
-    console.log('[SEMANTIC SEARCH] OpenAI API Key available:', !!openaiApiKey);
-    console.log('[SEMANTIC SEARCH] OpenAI API Key length:', openaiApiKey ? openaiApiKey.length : 0);
     if (openaiApiKey) {
       try {
         const response = await fetch('https://api.openai.com/v1/embeddings', {

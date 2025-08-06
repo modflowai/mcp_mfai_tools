@@ -27,7 +27,7 @@ interface Env {
   ALLOWED_GOOGLE_USERS?: string;
   ADMIN_GOOGLE_USERS?: string;
   // OpenAI API key for semantic search
-  OPENAI_API_KEY?: string;
+  OPENAI_API_KEY: string;
   DEBUG?: string;
   // Development mode - bypasses OAuth when set to "true"
   DEVELOPMENT_MODE?: string;
@@ -87,6 +87,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   constructor(ctx: any, env: Env) {
     super(ctx, env);
     this.env = env;  // Store for later access
+    
     
     // Check if in development mode
     this.isDevelopmentMode = env.DEVELOPMENT_MODE === 'true';
@@ -155,6 +156,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       // Initialize database connection
       this.sql = neon(this.env.MODFLOW_AI_MCP_01_CONNECTION_STRING);
     }
+
     
     // Handle initialization
     this.server.setRequestHandler(InitializeRequestSchema, async (request: any) => {
