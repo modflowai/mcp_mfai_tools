@@ -5,6 +5,7 @@
  */
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
+import acronymMappings from './acronym-mappings.json';
 
 export const searchDocumentationSchema = {
   name: "search_documentation",
@@ -112,8 +113,39 @@ async function searchDocumentationWithText(
   limit: number = 10
 ) {
   const repositories = repository ? [repository] : ['mf6', 'pest', 'pestpp', 'pest_hp', 'mfusg', 'plproc', 'gwutils'];
+  
+  // Expand acronyms in the search query
+  let searchTerm = query.trim();
+  const words = searchTerm.split(/\s+/);
+  const expandedTerms: string[] = [];
+  let hasAcronymExpansion = false;
+  
+  for (const word of words) {
+    const upperWord = word.toUpperCase();
+    if ((acronymMappings as any)[upperWord]) {
+      const mapping = (acronymMappings as any)[upperWord];
+      // For tsquery, we need to format it properly
+      const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
+      expandedTerms.push(`(${word} | ${fullTerms})`);
+      hasAcronymExpansion = true;
+    } else {
+      expandedTerms.push(word);
+    }
+  }
+  
+  // If we expanded any acronyms, use the expanded query with to_tsquery
+  // Otherwise, we'll use plainto_tsquery with the original query
+  let useTsquery = false;
+  if (hasAcronymExpansion) {
+    searchTerm = expandedTerms.join(' & ');
+    useTsquery = true;
+  } else {
+    // Keep original query for plainto_tsquery
+    searchTerm = query;
+  }
+  
   let filters = `rf.repo_name = ANY($2)`;
-  const params: any[] = [query, repositories];
+  const params: any[] = [searchTerm, repositories];
   
   if (fileType) {
     params.push(fileType.toLowerCase());
@@ -122,7 +154,8 @@ async function searchDocumentationWithText(
   
   params.push(limit);
   
-  return await sql`
+  const tsqueryFunc = useTsquery ? 'to_tsquery' : 'plainto_tsquery';
+  const queryStr = `
     SELECT 
       rf.filepath,
       rf.repo_name,
@@ -136,12 +169,12 @@ async function searchDocumentationWithText(
           coalesce(rf.analysis->>'summary', '') || ' ' ||
           coalesce(rf.content, '')
         ),
-        plainto_tsquery('english', $1),
+        ${tsqueryFunc}('english', $1),
         1 | 4 | 32  -- Weight title and summary higher
       ) as search_rank,
       ts_headline('english', 
         coalesce(rf.content, rf.analysis->>'summary', ''),
-        plainto_tsquery('english', $1),
+        ${tsqueryFunc}('english', $1),
         'MaxWords=30, MinWords=20, MaxFragments=2, FragmentDelimiter=" ... "'
       ) as snippet,
       'documentation' as search_source
@@ -152,12 +185,12 @@ async function searchDocumentationWithText(
         coalesce(rf.analysis->>'title', '') || ' ' ||
         coalesce(rf.analysis->>'summary', '') || ' ' ||
         coalesce(rf.content, '')
-      ) @@ plainto_tsquery('english', $1)
-      OR lower(rf.content) LIKE '%' || lower($1) || '%'
+      ) @@ ${tsqueryFunc}('english', $1)
     )
     ORDER BY search_rank DESC
     LIMIT $${params.length}
-  `.execute();
+  `;
+  return await sql.query(queryStr, params);
 }
 
 // Search documentation with semantic method (enhanced text search for now)
@@ -182,24 +215,35 @@ async function searchDocumentationWithEmbeddings(
   
   params.push(limit);
   
-  // Enhanced semantic-like search with expanded query terms
-  const expandedQuery = query + ' ' + query.split(' ').map(term => {
-    // Add conceptual expansions for common terms
-    const expansions: Record<string, string> = {
-      'flow': 'hydraulic fluid groundwater',
-      'conductivity': 'permeability hydraulic transmission',
-      'boundary': 'condition constraint limit',
-      'package': 'module component feature',
-      'solver': 'solution method algorithm numerical',
-      'grid': 'mesh discretization finite difference',
-      'transport': 'solute contaminant advection dispersion',
-      'calibration': 'parameter estimation optimization fitting',
-      'uncertainty': 'sensitivity monte carlo stochastic'
-    };
-    return expansions[term.toLowerCase()] || '';
-  }).join(' ');
+  // For semantic search, expand acronyms but keep it simple for plainto_tsquery
+  let expandedQuery = query.trim();
+  const words = expandedQuery.split(/\s+/);
+  const expandedTerms: string[] = [];
   
-  return await sql`
+  for (const word of words) {
+    const upperWord = word.toUpperCase();
+    expandedTerms.push(word);
+    if ((acronymMappings as any)[upperWord]) {
+      const mapping = (acronymMappings as any)[upperWord];
+      // Add the full form as additional search terms
+      expandedTerms.push(mapping.full.toLowerCase());
+    }
+  }
+  
+  expandedQuery = expandedTerms.join(' ');
+  
+  // Rebuild params array in correct order
+  const newParams: any[] = [expandedQuery, query, repositories];
+  if (fileType) {
+    newParams.push(fileType.toLowerCase());
+    filters = filters.replace(/\$3/g, '$4');  // Adjust fileType position
+  }
+  newParams.push(limit);
+  
+  // Update filters to use correct positions
+  filters = filters.replace(/\$2/g, '$3');  // repositories is now at position 3
+  
+  const queryStr = `
     SELECT 
       rf.filepath,
       rf.repo_name,
@@ -213,12 +257,12 @@ async function searchDocumentationWithEmbeddings(
           coalesce(rf.analysis->>'summary', '') || ' ' ||
           coalesce(rf.content, '')
         ),
-        plainto_tsquery('english', ${expandedQuery}),
+        plainto_tsquery('english', $1),
         1 | 4 | 32  -- Weight title and summary higher
       ) as similarity_score,
       ts_headline('english', 
         coalesce(rf.content, rf.analysis->>'summary', ''),
-        plainto_tsquery('english', $1),
+        plainto_tsquery('english', $2),
         'MaxWords=30, MinWords=20, MaxFragments=2, FragmentDelimiter=" ... "'
       ) as snippet,
       'documentation' as search_source
@@ -228,10 +272,11 @@ async function searchDocumentationWithEmbeddings(
       coalesce(rf.analysis->>'title', '') || ' ' ||
       coalesce(rf.analysis->>'summary', '') || ' ' ||
       coalesce(rf.content, '')
-    ) @@ plainto_tsquery('english', ${expandedQuery})
+    ) @@ plainto_tsquery('english', $1)
     ORDER BY similarity_score DESC
-    LIMIT $${params.length}
-  `.execute();
+    LIMIT $${newParams.length}
+  `;
+  return await sql.query(queryStr, newParams);
 }
 
 export async function searchDocumentation(args: any, sql: NeonQueryFunction<false, false>) {
@@ -259,7 +304,7 @@ export async function searchDocumentation(args: any, sql: NeonQueryFunction<fals
     
     console.log(`[SEARCH DOCUMENTATION] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, FileType: ${file_type || 'any'}`);
 
-    let results: DocumentationResult[] = [];
+    let results: any[] = [];
     
     if (method === 'semantic') {
       results = await searchDocumentationWithEmbeddings(query, sql, repository, file_type, limit);

@@ -123,7 +123,7 @@ async function searchModulesWithText(
     let filters = '';
     const params: any[] = [query];
     
-    if (packageCode) {
+    if (packageCode && repo === 'flopy') {
       params.push(packageCode.toUpperCase());
       filters += ` AND upper(fm.package_code) = $${params.length}`;
     }
@@ -138,48 +138,91 @@ async function searchModulesWithText(
     
     params.push(limit);
     
-    return sql`
-      SELECT 
-        fm.filepath,
-        '${repo}' as repo_name,
-        fm.analysis->>'title' as title,
-        fm.analysis->>'summary' as summary,
-        fm.package_code,
-        fm.model_family,
-        fm.category,
-        fm.key_concepts,
-        fm.usage_examples,
-        fm.parameters,
-        ts_rank_cd(
-          to_tsvector('english', 
-            coalesce(fm.analysis->>'title', '') || ' ' ||
-            coalesce(fm.analysis->>'summary', '') || ' ' ||
-            coalesce(fm.package_code, '') || ' ' ||
-            array_to_string(fm.key_concepts, ' ') || ' ' ||
-            array_to_string(fm.parameters, ' ')
-          ),
-          plainto_tsquery('english', ${query})
-        ) as search_rank,
-        ts_headline('english',
-          coalesce(fm.analysis->>'summary', ''),
-          plainto_tsquery('english', ${query}),
-          'MaxWords=25, MinWords=15, MaxFragments=1'
-        ) as snippet,
-        'modules' as search_source
-      FROM ${tableName} fm
-      WHERE to_tsvector('english', 
-        coalesce(fm.analysis->>'title', '') || ' ' ||
-        coalesce(fm.analysis->>'summary', '') || ' ' ||
-        coalesce(fm.package_code, '') || ' ' ||
-        array_to_string(fm.key_concepts, ' ') || ' ' ||
-        array_to_string(fm.parameters, ' ')
-      ) @@ plainto_tsquery('english', ${query})
-      ${packageCode ? `AND upper(fm.package_code) = '${packageCode.toUpperCase()}'` : ''}
-      ${modelFamily && repo === 'flopy' ? `AND lower(fm.model_family) = '${modelFamily.toLowerCase()}'` : ''}
-      ${category && repo === 'pyemu' ? `AND lower(fm.category) = '${category.toLowerCase()}'` : ''}
-      ORDER BY search_rank DESC
-      LIMIT ${limit}
-    `.execute();
+    // Different columns for flopy vs pyemu
+    if (repo === 'flopy') {
+      const queryStr = `
+        SELECT 
+          fm.relative_path as filepath,
+          '${repo}' as repo_name,
+          fm.semantic_purpose as title,
+          fm.semantic_purpose as summary,
+          fm.package_code,
+          fm.model_family,
+          NULL as category,
+          fm.related_concepts as key_concepts,
+          fm.user_scenarios as usage_examples,
+          NULL as parameters,
+          ts_rank_cd(
+            to_tsvector('english', 
+              coalesce(fm.semantic_purpose, '') || ' ' ||
+              coalesce(fm.package_code, '') || ' ' ||
+              coalesce(fm.module_name, '') || ' ' ||
+              array_to_string(fm.related_concepts, ' ')
+            ),
+            plainto_tsquery('english', $1)
+          ) as search_rank,
+          ts_headline('english',
+            coalesce(fm.semantic_purpose, ''),
+            plainto_tsquery('english', $1),
+            'MaxWords=25, MinWords=15, MaxFragments=1'
+          ) as snippet,
+          'modules' as search_source
+        FROM ${tableName} fm
+        WHERE to_tsvector('english', 
+          coalesce(fm.semantic_purpose, '') || ' ' ||
+          coalesce(fm.package_code, '') || ' ' ||
+          coalesce(fm.module_name, '') || ' ' ||
+          array_to_string(fm.related_concepts, ' ')
+        ) @@ plainto_tsquery('english', $1)
+        ${filters}
+        ORDER BY search_rank DESC
+        LIMIT $${params.length}
+      `;
+      return sql.query(queryStr, params);
+    } else {
+      // PyEMU
+      const queryStr = `
+        SELECT 
+          fm.relative_path as filepath,
+          '${repo}' as repo_name,
+          fm.semantic_purpose as title,
+          fm.semantic_purpose as summary,
+          NULL as package_code,
+          NULL as model_family,
+          fm.category,
+          fm.statistical_concepts as key_concepts,
+          fm.use_cases as usage_examples,
+          fm.pest_integration as parameters,
+          ts_rank_cd(
+            to_tsvector('english', 
+              coalesce(fm.semantic_purpose, '') || ' ' ||
+              coalesce(fm.category, '') || ' ' ||
+              coalesce(fm.module_name, '') || ' ' ||
+              array_to_string(fm.statistical_concepts, ' ') || ' ' ||
+              array_to_string(fm.pest_integration, ' ')
+            ),
+            plainto_tsquery('english', $1)
+          ) as search_rank,
+          ts_headline('english',
+            coalesce(fm.semantic_purpose, ''),
+            plainto_tsquery('english', $1),
+            'MaxWords=25, MinWords=15, MaxFragments=1'
+          ) as snippet,
+          'modules' as search_source
+        FROM ${tableName} fm
+        WHERE to_tsvector('english', 
+          coalesce(fm.semantic_purpose, '') || ' ' ||
+          coalesce(fm.category, '') || ' ' ||
+          coalesce(fm.module_name, '') || ' ' ||
+          array_to_string(fm.statistical_concepts, ' ') || ' ' ||
+          array_to_string(fm.pest_integration, ' ')
+        ) @@ plainto_tsquery('english', $1)
+        ${filters}
+        ORDER BY search_rank DESC
+        LIMIT $${params.length}
+      `;
+      return sql.query(queryStr, params);
+    }
   });
   
   const results = await Promise.all(moduleQueries);
@@ -222,7 +265,7 @@ async function searchDocumentationCode(query: string, sql: NeonQueryFunction<fal
     )
     ORDER BY search_rank DESC
     LIMIT ${limit}
-  `.execute();
+  `;
 }
 
 // Search modules with semantic method
@@ -275,8 +318,8 @@ export async function searchCode(args: any, sql: NeonQueryFunction<false, false>
     
     console.log(`[SEARCH CODE] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, Package: ${package_code || 'any'}`);
 
-    let moduleResults: CodeResult[] = [];
-    let docResults: CodeResult[] = [];
+    let moduleResults: any[] = [];
+    let docResults: any[] = [];
     
     if (method === 'semantic') {
       moduleResults = await searchModulesWithEmbeddings(query, sql, repository, package_code, model_family, category, moduleLimit);

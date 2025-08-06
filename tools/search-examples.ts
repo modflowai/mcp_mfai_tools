@@ -113,44 +113,46 @@ async function searchWorkflowsWithText(query: string, sql: NeonQueryFunction<fal
   
   const workflowQueries = workflowRepos.map(repo => {
     const tableName = `${repo}_workflows`;
-    return sql`
+    const fileColumn = repo === 'flopy' ? 'tutorial_file' : 'notebook_file';
+    let queryStr = `
       SELECT 
-        fw.filepath,
+        fw.${fileColumn} as filepath,
         '${repo}' as repo_name,
-        fw.analysis->>'title' as title,
-        fw.analysis->>'summary' as summary,
+        fw.title as title,
+        fw.description as summary,
         fw.complexity,
-        fw.workflow_type,
-        fw.packages_used,
+        ${repo === 'flopy' ? 'fw.model_type as workflow_type' : 'fw.workflow_type'},
+        ${repo === 'flopy' ? 'fw.packages_used' : 'fw.pyemu_modules as packages_used'},
         fw.tags,
-        fw.best_use_cases,
+        ${repo === 'flopy' ? 'fw.best_use_cases' : 'fw.common_applications as best_use_cases'},
         fw.workflow_purpose,
         ts_rank_cd(
           to_tsvector('english', 
-            coalesce(fw.analysis->>'title', '') || ' ' ||
-            coalesce(fw.analysis->>'summary', '') || ' ' ||
+            coalesce(fw.title, '') || ' ' ||
+            coalesce(fw.description, '') || ' ' ||
             coalesce(fw.workflow_purpose, '') || ' ' ||
             array_to_string(fw.tags, ' ')
           ),
-          plainto_tsquery('english', ${query})
+          plainto_tsquery('english', $1)
         ) as search_rank,
         ts_headline('english',
-          coalesce(fw.analysis->>'summary', fw.workflow_purpose, ''),
-          plainto_tsquery('english', ${query}),
+          coalesce(fw.description, fw.workflow_purpose, ''),
+          plainto_tsquery('english', $1),
           'MaxWords=20, MinWords=10, MaxFragments=1'
         ) as snippet,
         'workflows' as search_source
       FROM ${tableName} fw
       WHERE to_tsvector('english', 
-        coalesce(fw.analysis->>'title', '') || ' ' ||
-        coalesce(fw.analysis->>'summary', '') || ' ' ||
+        coalesce(fw.title, '') || ' ' ||
+        coalesce(fw.description, '') || ' ' ||
         coalesce(fw.workflow_purpose, '') || ' ' ||
         array_to_string(fw.tags, ' ')
-      ) @@ plainto_tsquery('english', ${query})
-      ${complexity ? `AND fw.complexity = ${complexity}` : ''}
+      ) @@ plainto_tsquery('english', $1)
+      ${complexity ? `AND fw.complexity = '${complexity}'` : ''}
       ORDER BY search_rank DESC
-      LIMIT ${limit}
-    `.execute();
+      LIMIT $2
+    `;
+    return sql.query(queryStr, [query, limit]);
   });
   
   const results = await Promise.all(workflowQueries);
@@ -166,7 +168,7 @@ async function searchDocumentationExamples(query: string, sql: NeonQueryFunction
   
   const repoFilter = docRepos.map(r => `'${r}'`).join(', ');
   
-  return await sql`
+  const queryStr = `
     SELECT 
       rf.filepath,
       rf.repo_name,
@@ -174,24 +176,26 @@ async function searchDocumentationExamples(query: string, sql: NeonQueryFunction
       rf.analysis->>'summary' as summary,
       ts_rank_cd(
         to_tsvector('english', rf.content),
-        plainto_tsquery('english', ${query})
+        plainto_tsquery('english', $1)
       ) as search_rank,
       ts_headline('english', rf.content,
-        plainto_tsquery('english', ${query}),
+        plainto_tsquery('english', $1),
         'MaxWords=20, MinWords=10, MaxFragments=1'
       ) as snippet,
       'documentation' as search_source
     FROM repository_files rf
-    WHERE rf.repo_name = ANY(${docRepos})
+    WHERE rf.repo_name = ANY($2)
     AND (
       lower(rf.filepath) LIKE '%example%'
       OR lower(rf.filepath) LIKE '%tutorial%'
       OR lower(rf.analysis->>'title') LIKE '%example%'
-      OR to_tsvector('english', rf.content) @@ plainto_tsquery('english', ${query})
+      OR to_tsvector('english', rf.content) @@ plainto_tsquery('english', $1)
     )
     ORDER BY search_rank DESC
-    LIMIT ${limit}
-  `.execute();
+    LIMIT $3
+  `;
+  
+  return await sql.query(queryStr, [query, docRepos, limit]);
 }
 
 // Search workflows with semantic method  
@@ -228,8 +232,8 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     
     console.log(`[SEARCH EXAMPLES] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, Complexity: ${complexity || 'any'}`);
 
-    let workflowResults: ExampleResult[] = [];
-    let docResults: ExampleResult[] = [];
+    let workflowResults: any[] = [];
+    let docResults: any[] = [];
     
     if (method === 'semantic') {
       workflowResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, workflowLimit);

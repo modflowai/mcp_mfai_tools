@@ -23,9 +23,19 @@ This is a production-ready MCP (Model Context Protocol) Server deployed on Cloud
 - `multi-provider-handler.ts`: Handles provider selection UI and OAuth callbacks
 - `github-handler.ts`: GitHub-specific OAuth flow
 - `google-handler.ts`: Google-specific OAuth flow  
+
+### Phase 1 Tools (Foundation)
 - `tools/text-search.ts`: Full-text database search tool with acronym expansion
 - `tools/semantic-search.ts`: Enhanced semantic search with similarity ranking
 - `tools/get-file-content.ts`: Direct file content retrieval by exact path
+
+### Phase 2 Tools (Content-Focused)
+- `tools/search-examples.ts`: Search for tutorials, workflows, and complete implementations
+- `tools/search-code.ts`: Search for API details, function signatures, and class definitions
+- `tools/search-documentation.ts`: Search for theory, mathematical background, and reference guides
+
+### Utilities
+- `tools/acronym-mappings.json`: Acronym expansions for improved search accuracy
 - `examples/simple-mcp-client.js`: Simple test client for development mode
 
 ## Development Commands
@@ -96,6 +106,42 @@ wrangler kv:namespace create OAUTH_KV
 **Working URLs:**
 - OAuth Selection: https://mcp-mfai-tools.little-grass-273a.workers.dev/authorize
 - MCP Endpoint: https://mcp-mfai-tools.little-grass-273a.workers.dev/mcp
+
+## Available MCP Tools
+
+The server provides six comprehensive search tools for MODFLOW/PEST documentation and code:
+
+### Phase 1: Foundation Tools
+1. **text_search_repository** - Full-text search with acronym expansion
+   - Searches across all documentation and code repositories
+   - Supports boolean operators, wildcards, and phrase search
+   - Automatically expands acronyms (e.g., "WEL" → "Well")
+
+2. **semantic_search_repository** - AI-powered conceptual search
+   - Uses enhanced text search with semantic weighting
+   - Finds conceptually related content even with different terminology
+   - Ideal for "how to" queries and exploratory research
+
+3. **get_file_content** - Direct file retrieval
+   - Retrieves complete file content by exact filepath
+   - Returns full source code or documentation with metadata
+   - Use after search tools to examine specific files
+
+### Phase 2: Content-Focused Tools
+4. **search_examples** - Tutorial and workflow search
+   - Searches FloPy/PyEMU workflow collections
+   - Returns tutorials with complexity levels and best use cases
+   - Includes package usage and workflow purposes
+
+5. **search_code** - API and module search
+   - Searches FloPy/PyEMU module collections
+   - Returns API details, function signatures, and parameters
+   - Includes package codes and model families
+
+6. **search_documentation** - Theory and reference search
+   - Searches comprehensive documentation repositories
+   - Returns mathematical theory and conceptual explanations
+   - Includes key concepts and scientific principles
 
 ## Adding New MCP Tools
 

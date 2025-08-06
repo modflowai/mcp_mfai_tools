@@ -7,8 +7,10 @@ A production-ready MCP (Model Context Protocol) server with OAuth authentication
 - **OAuth Authentication** - GitHub and Google sign-in with beautiful login page
 - **HTTP Transport** - Cloudflare Workers deployment
 - **User Access Control** - Allowlist for GitHub usernames and Google emails
-- **Multiple Tools** - Text search and semantic search for MODFLOW documentation
+- **Six Comprehensive Search Tools** - Foundation and content-focused search capabilities
 - **Beautiful Login UI** - Glass-morphism design with provider selection
+- **Intelligent Search** - Acronym expansion and semantic understanding
+- **Rich Metadata** - Returns complexity levels, best use cases, and recommendations
 
 ## Live Deployment
 
@@ -28,7 +30,11 @@ mcp_mfai_tools/
 ├── tools/
 │   ├── text-search.ts         # Full-text search with acronym expansion
 │   ├── semantic-search.ts     # Enhanced semantic search with similarity ranking
-│   └── get-file-content.ts    # Direct file content retrieval
+│   ├── get-file-content.ts    # Direct file content retrieval
+│   ├── search-examples.ts     # Tutorial and workflow search
+│   ├── search-code.ts         # API and module search
+│   ├── search-documentation.ts # Theory and reference search
+│   └── acronym-mappings.json  # Acronym expansions
 ├── examples/
 │   └── simple-mcp-client.js   # Simple test client for development
 ├── wrangler.toml              # Production configuration
@@ -182,14 +188,16 @@ const DEFAULT_ALLOWED_EMAILS = [
 
 ## Available Tools
 
-### 1. text_search_repository
+### Phase 1: Foundation Tools
+
+#### 1. text_search_repository
 - **Purpose**: Full-text search across MODFLOW/PEST documentation
 - **Features**: Exact keyword matching with acronym expansion, Boolean operators, wildcards
 - **Input**: `query` (required), `repository` (optional), `file_type` (optional), `limit` (optional), `include_content` (optional)
 - **Best for**: Finding specific functions, classes, variables, or exact terminology
 - **Example**: Search for "WEL" automatically expands to include "Well Package" results
 
-### 2. semantic_search_repository
+#### 2. semantic_search_repository
 - **Purpose**: Semantic search using enhanced text analysis and similarity ranking
 - **Features**: Conceptual similarity search, summary-based evaluation, smart content retrieval
 - **Input**: `query` (required), `repository` (optional), `limit` (optional) 
@@ -197,7 +205,7 @@ const DEFAULT_ALLOWED_EMAILS = [
 - **Example**: Search for "groundwater flow modeling" finds related documentation about flow packages, discretization, and solver configuration
 - **Note**: Currently uses enhanced text search as fallback (true semantic embeddings require additional infrastructure)
 
-### 3. get_file_content
+#### 3. get_file_content
 - **Purpose**: Retrieve complete content of a specific file by its exact path
 - **Features**: Direct file access, full content retrieval, supports all file types in the database
 - **Input**: `repository` (required), `filepath` (required)
@@ -205,7 +213,35 @@ const DEFAULT_ALLOWED_EMAILS = [
 - **Example**: Retrieve `mf6io/well_wel_package.md` from the `mf6` repository
 - **Note**: File paths must match exactly as stored in the database
 
+### Phase 2: Content-Focused Tools
+
+#### 4. search_examples
+- **Purpose**: Search for tutorials, workflows, and complete implementations
+- **Features**: Returns complexity levels, best use cases, workflow purposes
+- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Best for**: Finding tutorials, working examples, step-by-step implementations
+- **Example**: Search for "well package tutorial" returns FloPy/PyEMU workflows
+- **Repositories**: Searches flopy_workflows, pyemu_workflows, and documentation examples
+
+#### 5. search_code
+- **Purpose**: Search for API details, function signatures, and class definitions
+- **Features**: Returns package codes, model families, parameter lists
+- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Best for**: Finding API documentation, implementation specifics, programming interfaces
+- **Example**: Search for "WEL package parameters" returns module documentation
+- **Repositories**: Searches flopy_modules, pyemu_modules, and code references
+
+#### 6. search_documentation
+- **Purpose**: Search for theory, mathematical background, and conceptual explanations
+- **Features**: Returns key concepts, scientific principles, reference guides
+- **Input**: `query` (required), `repository` (optional), `limit` (optional)
+- **Best for**: Finding theoretical foundations, mathematical formulations, technical explanations
+- **Example**: Search for "hydraulic conductivity theory" returns conceptual documentation
+- **Repositories**: Comprehensive documentation including MODFLOW 6, PEST, PEST++, MODFLOW-USG
+
 ### Supported Repositories
+
+#### Documentation Repositories
 - **mf6**: MODFLOW 6 documentation
 - **pest**: Parameter Estimation package documentation  
 - **pestpp**: PEST++ enhanced version documentation
@@ -213,6 +249,10 @@ const DEFAULT_ALLOWED_EMAILS = [
 - **mfusg**: MODFLOW-USG (Unstructured Grid) documentation
 - **plproc**: Parameter list processor documentation
 - **gwutils**: Groundwater data utilities documentation
+
+#### Code Repositories
+- **flopy**: Python package for MODFLOW (workflows and modules)
+- **pyemu**: PyEMU uncertainty analysis (workflows and modules)
 
 ## Development
 
