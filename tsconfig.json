@@ -17,7 +17,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2022"],
-    "types": ["node"],
+    "types": ["@cloudflare/workers-types"],
     "resolveJsonModule": true
   },
   "include": ["src/**/*.ts", "src/**/*.json"],

@@ -14,13 +14,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { neon } from '@neondatabase/serverless';
-// Phase 1: Legacy tools (commented out - replaced by Phase 2 tools)
-// import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./tools/text-search.js";
-// import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
+// Import the four working tools
+import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./tools/text-search.js";
+import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
 import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
-import { searchExamplesSchema, searchExamples } from "./tools/search-examples.js";
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
-import { searchDocumentationSchema, searchDocumentation } from "./tools/search-documentation.js";
+
+// Use the imported text search schema
+const textSearchSchema = importedTextSearchSchema;
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -81,7 +82,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   server: Server;
   sql: any;  // Database connection
   private env: Env;  // Store env reference
-  private props!: Props;  // Store props reference (assigned in init)
+  protected props!: Props;  // Store props reference (assigned in init)
   
   // User access control lists
   private ALLOWED_GITHUB_USERS: Set<string> = new Set();
@@ -126,7 +127,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         name: 'Development User',
         email: 'dev@localhost',
         accessToken: 'dev-token',
-        provider: 'development'
+        provider: undefined
       } as Props;
     } else {
       // User context available via base class props
@@ -185,40 +186,27 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       };
     });
     
-    // Register available tools
+    // Register available tools - now with search-code tool
     const toolsList = [
-      // Phase 2: Content-focused tools (primary)
       {
-        name: searchExamplesSchema.name,
-        description: searchExamplesSchema.description,
-        inputSchema: searchExamplesSchema.inputSchema,
+        name: textSearchSchema.name,
+        description: textSearchSchema.description,
+        inputSchema: textSearchSchema.inputSchema,
+      },
+      {
+        name: semanticSearchSchema.name,
+        description: semanticSearchSchema.description,
+        inputSchema: semanticSearchSchema.inputSchema,
+      },
+      {
+        name: getFileContentSchema.name,
+        description: getFileContentSchema.description,
+        inputSchema: getFileContentSchema.inputSchema,
       },
       {
         name: searchCodeSchema.name,
         description: searchCodeSchema.description,
         inputSchema: searchCodeSchema.inputSchema,
-      },
-      {
-        name: searchDocumentationSchema.name,
-        description: searchDocumentationSchema.description,
-        inputSchema: searchDocumentationSchema.inputSchema,
-      },
-      // Phase 1: Legacy tools (commented out - replaced by Phase 2 tools)
-      // {
-      //   name: textSearchSchema.name,
-      //   description: textSearchSchema.description,
-      //   inputSchema: textSearchSchema.inputSchema,
-      // },
-      // {
-      //   name: semanticSearchSchema.name,
-      //   description: semanticSearchSchema.description,
-      //   inputSchema: semanticSearchSchema.inputSchema,
-      // },
-      // Utility tools
-      {
-        name: getFileContentSchema.name,
-        description: getFileContentSchema.description,
-        inputSchema: getFileContentSchema.inputSchema,
       }
     ];
     
@@ -236,25 +224,17 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       console.log('[MCP] Extracted args:', JSON.stringify(args, null, 2));
       
       switch (name) {
-        // Phase 2: Content-focused tools
-        case 'search_examples':
-          return await this.handleSearchExamples(args);
+        case 'text_search_repository':
+          return await this.handleTextSearchRepository(args);
         
-        case 'search_code':
-          return await this.handleSearchCode(args);
-        
-        case 'search_documentation':
-          return await this.handleSearchDocumentation(args);
-        
-        // Phase 1: Legacy tools (commented out - replaced by Phase 2 tools)
-        // case 'text_search_repository':
-        //   return await this.handleTextSearchRepository(args);
-        
-        // case 'semantic_search_repository':
-        //   return await this.handleSemanticSearchRepository(args);
+        case 'semantic_search_repository':
+          return await this.handleSemanticSearchRepository(args);
         
         case 'get_file_content':
           return await this.handleGetFileContent(args);
+        
+        case 'search_code':
+          return await this.handleSearchCode(args);
         
         default:
           throw new McpError(
@@ -264,8 +244,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tools:", searchExamplesSchema.name, searchCodeSchema.name, searchDocumentationSchema.name, getFileContentSchema.name);
-    // console.log("[MCP] Registered Phase 1 tools (legacy):", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name);
+    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -300,118 +279,20 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     return false;
   }
   
-  // Phase 2: Content-focused tool handlers  
-  private async handleSearchExamples(args: any) {
-    try {
-      console.log('[MCP] handleSearchExamples called with args:', JSON.stringify(args));
-      
-      // Handle the case where args might be undefined or malformed
-      if (!args || typeof args !== 'object') {
-        args = {};
-      }
-      
-      // Try calling the imported function
-      if (typeof searchExamples === 'function') {
-        console.log('[MCP] Calling searchExamples function');
-        const result = await searchExamples(args, this.sql);
-        console.log('[MCP] searchExamples returned successfully');
-        return result;
-      } else {
-        // Fallback to inline implementation
-        console.log('[MCP] Using inline fallback implementation');
-        const { query, repository, limit = 10 } = args;
-        
-        if (!query || typeof query !== 'string' || query.trim().length === 0) {
-          return {
-            content: [{
-              type: "text" as const,
-              text: "Error: Query parameter is required and cannot be empty"
-            }]
-          };
-        }
-        
-        // Return a simple test response
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              message: "Search examples tool (fallback)",
-              query: query,
-              repository: repository || "all",
-              limit: limit
-            }, null, 2)
-          }]
-        };
-      }
-      
-    } catch (error) {
-      console.error('[MCP] Error in handleSearchExamples:', error);
-      return {
-        content: [{
-          type: "text" as const,
-          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }]
-      };
-    }
+  // Tool handler methods
+  private async handleTextSearchRepository(args: any) {
+    return await textSearchTool(args, this.sql);
   }
   
-  private async handleSearchCode(args: any) {
-    try {
-      console.log('[MCP] handleSearchCode called');
-      
-      if (typeof searchCode !== 'function') {
-        throw new Error('searchCode function not properly imported');
-      }
-      
-      const result = await searchCode(args, this.sql);
-      console.log('[MCP] searchCode result received');
-      return result;
-      
-    } catch (error) {
-      console.error('[MCP] Error in handleSearchCode:', error);
-      return {
-        content: [{
-          type: "text" as const,
-          text: `Error in search_code: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }]
-      };
-    }
+  private async handleSemanticSearchRepository(args: any) {
+    return await semanticSearchTool(args, this.sql, this.env.OPENAI_API_KEY);
   }
-  
-  private async handleSearchDocumentation(args: any) {
-    try {
-      console.log('[MCP] handleSearchDocumentation called');
-      
-      if (typeof searchDocumentation !== 'function') {
-        throw new Error('searchDocumentation function not properly imported');
-      }
-      
-      const result = await searchDocumentation(args, this.sql);
-      console.log('[MCP] searchDocumentation result received');
-      return result;
-      
-    } catch (error) {
-      console.error('[MCP] Error in handleSearchDocumentation:', error);
-      return {
-        content: [{
-          type: "text" as const,
-          text: `Error in search_documentation: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }]
-      };
-    }
-  }
-  
-  // Phase 1: Legacy tool handlers (maintained for compatibility)
-  // Phase 1: Legacy tools (commented out - replaced by Phase 2 tools)
-  // private async handleTextSearchRepository(args: any) {
-  //   return await textSearchTool(args, this.sql);
-  // }
-  
-  // private async handleSemanticSearchRepository(args: any) {
-  //   return await semanticSearchTool(args, this.sql, this.env.OPENAI_API_KEY);
-  // }
   
   private async handleGetFileContent(args: any) {
     return await getFileContentTool(args, this.sql);
+  }
+  
+  private async handleSearchCode(args: any) {
+    return await searchCode(args, this.sql);
   }
 }
