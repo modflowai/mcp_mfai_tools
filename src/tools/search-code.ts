@@ -80,22 +80,27 @@ async function executeSearchStrategy(
     include_errors: boolean;
     include_pest: boolean;
     include_source: boolean;
+  },
+  filterOptions: {
+    package_code?: string;
+    model_family?: string;
+    category?: string;
   }
 ): Promise<any[]> {
   console.log(`[SEARCH CODE] Using search strategy: ${searchStrategy}`);
   
   switch (searchStrategy) {
     case 'package':
-      return await executePackageSearch(sql, searchTerm, repository, limit, includeOptions);
+      return await executePackageSearch(sql, searchTerm, repository, limit, includeOptions, filterOptions);
     case 'error':
-      return await executeErrorSearch(sql, searchTerm, repository, limit, includeOptions);
+      return await executeErrorSearch(sql, searchTerm, repository, limit, includeOptions, filterOptions);
     case 'usage':
-      return await executeUsageSearch(sql, searchTerm, repository, limit, includeOptions);
+      return await executeUsageSearch(sql, searchTerm, repository, limit, includeOptions, filterOptions);
     case 'concept':
-      return await executeConceptSearch(sql, searchTerm, repository, limit, includeOptions);
+      return await executeConceptSearch(sql, searchTerm, repository, limit, includeOptions, filterOptions);
     case 'general':
     default:
-      return await executeGeneralSearch(sql, searchTerm, repository, limit, includeOptions);
+      return await executeGeneralSearch(sql, searchTerm, repository, limit, includeOptions, filterOptions);
   }
 }
 
@@ -104,7 +109,8 @@ async function executeGeneralSearch(
   searchTerm: string,
   repository: string | undefined,
   limit: number,
-  includeOptions: any
+  includeOptions: any,
+  filterOptions: any
 ): Promise<any[]> {
   // This is the existing search logic (current behavior)
   let results: any[] = [];
@@ -112,7 +118,7 @@ async function executeGeneralSearch(
   
   // Search flopy_modules (existing logic)
   if (!repository || repository === 'flopy') {
-    const flopQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+    const flopQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'general', filterOptions);
     debugInfo.push(`FloPy general query: ${flopQuery}`);
     console.log('[SEARCH CODE] FloPy query (general):', flopQuery);
     const flopResults = await sql.query(flopQuery, [searchTerm]);
@@ -123,7 +129,7 @@ async function executeGeneralSearch(
   
   // Search pyemu_modules (existing logic) - but note: general search doesn't use ILIKE for arrays
   if (!repository || repository === 'pyemu') {
-    const pyemuQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+    const pyemuQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'general', filterOptions);
     debugInfo.push(`PyEMU general query: ${pyemuQuery}`);
     console.log('[SEARCH CODE] PyEMU query (general):', pyemuQuery);
     const pyemuResults = await sql.query(pyemuQuery, [searchTerm]);
@@ -147,14 +153,15 @@ async function executePackageSearch(
   searchTerm: string,
   repository: string | undefined,
   limit: number,
-  includeOptions: any
+  includeOptions: any,
+  filterOptions: any
 ): Promise<any[]> {
   // Strategy: Exact package code matching first, then general search
   let results: any[] = [];
   
   if (!repository || repository === 'flopy') {
     // Try exact package code match first
-    const exactPackageQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, true);
+    const exactPackageQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, true, 'general', filterOptions);
     console.log('[SEARCH CODE] FloPy exact package query:', exactPackageQuery);
     const exactResults = await sql.query(exactPackageQuery, [searchTerm.toUpperCase()]);
     console.log('[SEARCH CODE] Exact package results:', exactResults?.length || 0);
@@ -162,7 +169,7 @@ async function executePackageSearch(
     
     // If no exact matches, fall back to general search
     if (exactResults.length === 0) {
-      const generalQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+      const generalQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'general', filterOptions);
       const generalResults = await sql.query(generalQuery, [searchTerm]);
       results.push(...generalResults);
     }
@@ -170,7 +177,7 @@ async function executePackageSearch(
   
   // PyEMU doesn't have package codes, so use general search
   if (!repository || repository === 'pyemu') {
-    const pyemuQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+    const pyemuQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'general', filterOptions);
     const pyemuResults = await sql.query(pyemuQuery, [searchTerm]);
     results.push(...pyemuResults);
   }
@@ -183,13 +190,14 @@ async function executeErrorSearch(
   searchTerm: string,
   repository: string | undefined,
   limit: number,
-  includeOptions: any
+  includeOptions: any,
+  filterOptions: any
 ): Promise<any[]> {
   // Strategy: Search error arrays first, then general search
   let results: any[] = [];
   
   if (!repository || repository === 'flopy') {
-    const errorQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'error');
+    const errorQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'error', filterOptions);
     console.log('[SEARCH CODE] FloPy error-focused query:', errorQuery);
     const errorResults = await sql.query(errorQuery, [searchTerm]);
     console.log('[SEARCH CODE] Error-focused results:', errorResults?.length || 0);
@@ -197,7 +205,7 @@ async function executeErrorSearch(
   }
   
   if (!repository || repository === 'pyemu') {
-    const pyemuErrorQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'error');
+    const pyemuErrorQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'error', filterOptions);
     const flexiblePattern = `%${searchTerm.replace(/\s*&\s*/g, '%').replace(/\s+/g, '%')}%`;
     const pyemuErrorResults = await sql.query(pyemuErrorQuery, [searchTerm, flexiblePattern]);
     results.push(...pyemuErrorResults);
@@ -211,19 +219,20 @@ async function executeUsageSearch(
   searchTerm: string,
   repository: string | undefined,
   limit: number,
-  includeOptions: any
+  includeOptions: any,
+  filterOptions: any
 ): Promise<any[]> {
   // Strategy: Search usage/scenario arrays first
   let results: any[] = [];
   
   if (!repository || repository === 'flopy') {
-    const usageQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'usage');
+    const usageQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'usage', filterOptions);
     const usageResults = await sql.query(usageQuery, [searchTerm]);
     results.push(...usageResults);
   }
   
   if (!repository || repository === 'pyemu') {
-    const pyemuUsageQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'usage');
+    const pyemuUsageQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'usage', filterOptions);
     const flexiblePattern = `%${searchTerm.replace(/\s*&\s*/g, '%').replace(/\s+/g, '%')}%`;
     const pyemuUsageResults = await sql.query(pyemuUsageQuery, [searchTerm, flexiblePattern]);
     results.push(...pyemuUsageResults);
@@ -237,14 +246,15 @@ async function executeConceptSearch(
   searchTerm: string,
   repository: string | undefined,
   limit: number,
-  includeOptions: any
+  includeOptions: any,
+  filterOptions: any
 ): Promise<any[]> {
   // Strategy: Search concept arrays first
   let results: any[] = [];
   let debugInfo: string[] = [];
   
   if (!repository || repository === 'flopy') {
-    const conceptQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'concept');
+    const conceptQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'concept', filterOptions);
     debugInfo.push(`FloPy concept query: ${conceptQuery}`);
     const conceptResults = await sql.query(conceptQuery, [searchTerm]);
     debugInfo.push(`FloPy concept results: ${conceptResults?.length || 0}`);
@@ -252,7 +262,7 @@ async function executeConceptSearch(
   }
   
   if (!repository || repository === 'pyemu') {
-    const pyemuConceptQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'concept');
+    const pyemuConceptQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'concept', filterOptions);
     debugInfo.push(`PyEMU concept query: ${pyemuConceptQuery}`);
     
     // Create flexible search pattern for arrays (e.g., "first order" -> "%first%order%")
@@ -278,23 +288,34 @@ function buildFloepyQuery(
   limit: number,
   includeOptions: any,
   exactPackage: boolean = false,
-  searchFocus: string = 'general'
+  searchFocus: string = 'general',
+  filterOptions: any = {}
 ): string {
   const { include_github, include_scenarios, include_concepts, include_errors, include_source } = includeOptions;
+  const { package_code, model_family } = filterOptions;
   
   let whereClause;
   let orderClause;
   
+  // Phase 2.2: Build additional filter conditions for FloPy
+  let additionalFilters = '';
+  if (package_code) {
+    additionalFilters += ` AND UPPER(package_code) = '${package_code.toUpperCase()}'`;
+  }
+  if (model_family) {
+    additionalFilters += ` AND LOWER(model_family) = '${model_family.toLowerCase()}'`;
+  }
+  
   if (exactPackage) {
     // Exact package code matching
-    whereClause = `WHERE UPPER(package_code) = $1`;
+    whereClause = `WHERE UPPER(package_code) = $1${additionalFilters}`;
     orderClause = `ORDER BY package_code, module_name`;
   } else if (searchFocus === 'error') {
     // Focus on error arrays
     whereClause = `WHERE (
       to_tsvector('english', array_to_string(typical_errors, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN to_tsvector('english', array_to_string(typical_errors, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
@@ -303,7 +324,7 @@ function buildFloepyQuery(
     whereClause = `WHERE (
       to_tsvector('english', array_to_string(user_scenarios, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN to_tsvector('english', array_to_string(user_scenarios, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
@@ -312,13 +333,13 @@ function buildFloepyQuery(
     whereClause = `WHERE (
       to_tsvector('english', array_to_string(related_concepts, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN to_tsvector('english', array_to_string(related_concepts, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   } else {
     // General search (existing behavior)
-    whereClause = `WHERE search_vector @@ to_tsquery('english', $1)`;
+    whereClause = `WHERE search_vector @@ to_tsquery('english', $1)${additionalFilters}`;
     orderClause = `ORDER BY ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   }
 
@@ -348,12 +369,20 @@ function buildPyemuQuery(
   searchTerm: string,
   limit: number,
   includeOptions: any,
-  searchFocus: string = 'general'
+  searchFocus: string = 'general',
+  filterOptions: any = {}
 ): string {
   const { include_github, include_scenarios, include_concepts, include_errors, include_pest, include_source } = includeOptions;
+  const { category } = filterOptions;
   
   let whereClause;
   let orderClause;
+  
+  // Phase 2.2: Build additional filter conditions for PyEMU
+  let additionalFilters = '';
+  if (category) {
+    additionalFilters += ` AND LOWER(category) = '${category.toLowerCase()}'`;
+  }
   
   if (searchFocus === 'error') {
     // Focus on error/pitfall arrays - use flexible ILIKE matching  
@@ -361,7 +390,7 @@ function buildPyemuQuery(
       array_to_string(common_pitfalls, ' ') ILIKE $2
       OR to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN (
         array_to_string(common_pitfalls, ' ') ILIKE $2
@@ -374,7 +403,7 @@ function buildPyemuQuery(
       array_to_string(use_cases, ' ') ILIKE $2
       OR to_tsvector('english', array_to_string(use_cases, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN (
         array_to_string(use_cases, ' ') ILIKE $2
@@ -387,7 +416,7 @@ function buildPyemuQuery(
       array_to_string(statistical_concepts, ' ') ILIKE $2
       OR to_tsvector('english', array_to_string(statistical_concepts, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
-    )`;
+    )${additionalFilters}`;
     orderClause = `ORDER BY 
       CASE WHEN (
         array_to_string(statistical_concepts, ' ') ILIKE $2
@@ -396,7 +425,7 @@ function buildPyemuQuery(
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   } else {
     // General search (existing behavior)
-    whereClause = `WHERE search_vector @@ to_tsquery('english', $1)`;
+    whereClause = `WHERE search_vector @@ to_tsquery('english', $1)${additionalFilters}`;
     orderClause = `ORDER BY ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   }
 
@@ -520,6 +549,19 @@ export const searchCodeSchema = {
         enum: ['general', 'package', 'error', 'usage', 'concept'],
         description: 'Search strategy: general (default), package (exact codes), error (troubleshooting), usage (scenarios), concept (theory)',
       },
+      // Phase 2.2: User-controlled filters
+      package_code: {
+        type: 'string',
+        description: 'Filter by specific MODFLOW package code (WEL, RCH, SMS, etc.) - FloPy only',
+      },
+      model_family: {
+        type: 'string', 
+        description: 'Filter by model family (mf6, mfusg, modflow, mt3d) - FloPy only',
+      },
+      category: {
+        type: 'string',
+        description: 'Filter by category (core, utils, plot) - PyEMU only',
+      },
     },
     required: ['query'],
   }
@@ -545,7 +587,11 @@ export async function searchCode(
       snippet_length = 150,
       compact_format = false,
       // Phase 2: Search strategy options
-      search_type = 'general'
+      search_type = 'general',
+      // Phase 2.2: User-controlled filters
+      package_code,
+      model_family,
+      category
     } = args;
 
     // Validate formatting parameters
@@ -589,13 +635,21 @@ export async function searchCode(
       include_source
     };
     
+    // Phase 2.2: Pass filters to search strategy
+    const filterOptions = {
+      package_code,
+      model_family, 
+      category
+    };
+    
     let results = await executeSearchStrategy(
       sql,
       searchStrategy,
       searchTerm,
       repository,
       limit,
-      includeOptions
+      includeOptions,
+      filterOptions
     );
 
     // Sort by relevance and filter out debug-only entries
