@@ -39,9 +39,9 @@ interface SemanticSearchResultItem {
 }
 
 // Tool schema definition
-export const semanticSearchSchema = {
-  name: "semantic_search_repository",
-  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples with vector similarity ranking. Supports filtering by model_family, package_code, category, workflow_type, or complexity. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "uncertainty analysis", "time-varying boundary conditions". For exact keyword matching, use text_search_repository instead.',
+export const semanticSearchDocsSchema = {
+  name: "semantic_search_docs",
+  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples with vector similarity ranking. Supports filtering by model_family, package_code, category, workflow_type, or complexity. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "uncertainty analysis", "time-varying boundary conditions". For exact keyword matching, use search_docs instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -81,7 +81,7 @@ export const semanticSearchSchema = {
 };
 
 // Tool implementation with real OpenAI embeddings
-export async function semanticSearchTool(args: any, sql: NeonQueryFunction<false, false>, openaiApiKey?: string) {
+export async function semanticSearchDocs(args: any, sql: NeonQueryFunction<false, false>, openaiApiKey?: string) {
   try {
     const { query, repository, limit = 10, filter = {} } = args;
 
@@ -713,6 +713,9 @@ function formatSemanticSearchResults(
     outputText += `\n`;
   });
 
+
+  // Add important reminder about using get_file_content
+  outputText += `\n📋 **IMPORTANT REMINDER**: These are only previews and snippets. For complete, accurate file content without truncation or potential hallucinations, always use the \`get_file_content\` tool with the exact filepath shown above. This ensures you get the full, unmodified source code or documentation.\n`;
 
   return {
     content: [{

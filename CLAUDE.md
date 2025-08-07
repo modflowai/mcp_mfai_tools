@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready MCP (Model Context Protocol) Server deployed on Cloudflare Workers with OAuth authentication (GitHub and Google) and HTTP transport. It provides secure access to MODFLOW documentation search capabilities through a single database tool.
+This is a production-ready MCP (Model Context Protocol) Server deployed on Cloudflare Workers with OAuth authentication (GitHub and Google) and HTTP transport. It provides secure access to MODFLOW documentation search capabilities through six specialized search tools.
 
 **Production URL:** https://mcp-mfai-tools.little-grass-273a.workers.dev
 
@@ -27,12 +27,12 @@ src/
 │   ├── google-handler.ts     # Google OAuth flow
 │   └── multi-provider-handler.ts # Provider selection UI
 ├── tools/                     # MCP tool implementations
-│   ├── search-examples.ts    # Tutorial and workflow search
+│   ├── search-tutorials.ts  # Tutorial and workflow search
 │   ├── search-code.ts        # API and module search
-│   ├── search-documentation.ts # Theory and reference search (3-word limit)
+│   ├── search-docs.ts        # Documentation search
+│   ├── semantic-search-tutorials.ts # Semantic tutorial search
+│   ├── semantic-search-docs.ts # Semantic documentation search
 │   ├── get-file-content.ts   # Direct file retrieval
-│   ├── text-search.ts        # [DEPRECATED] Full-text search
-│   ├── semantic-search.ts    # [DEPRECATED] Semantic search
 │   └── acronym-mappings.json # Centralized acronym expansions
 └── utils/                     # Utility functions
     ├── utils.ts              # OAuth utilities

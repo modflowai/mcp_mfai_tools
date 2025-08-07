@@ -40,9 +40,9 @@ interface SearchResultItem {
 }
 
 // Tool schema definition
-export const textSearchSchema = {
-  name: "text_search_repository",
-  description: 'Full-text search across MODFLOW/PEST repositories for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples. Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets and rich metadata (packages, complexity, tags). Use for specific technical terms, parameter names, package codes, workflow types. Examples: "WEL package", "hydraulic conductivity", "parameter estimation", "time series". For conceptual searches, use semantic_search_repository instead.',
+export const searchDocsSchema = {
+  name: "search_docs",
+  description: 'Full-text search across MODFLOW/PEST documentation for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples. Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets and rich metadata (packages, complexity, tags). Use for specific technical terms, parameter names, package codes, workflow types. Examples: "WEL package", "hydraulic conductivity", "parameter estimation", "time series". For conceptual searches, use semantic_search_docs instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -72,9 +72,9 @@ export const textSearchSchema = {
 };
 
 // Tool implementation
-export async function textSearchTool(args: any, sql: NeonQueryFunction<false, false>) {
+export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>) {
   try {
-    console.log('[TEXT SEARCH] Starting text search with args:', args);
+    console.log('[SEARCH DOCS] Starting documentation search with args:', args);
     
     // Parse boolean values that might come as strings from MCP
     const parseBool = (value: any, defaultValue: boolean): boolean => {
@@ -89,7 +89,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     const { query, repository, file_type, limit = 15 } = args;
     const include_content = parseBool(args.include_content, true);
     
-    console.log(`[TEXT SEARCH] After parsing: include_content=${include_content}, type=${typeof include_content}, original=${args.include_content}, original type=${typeof args.include_content}`);
+    console.log(`[SEARCH DOCS] After parsing: include_content=${include_content}, type=${typeof include_content}, original=${args.include_content}, original type=${typeof args.include_content}`);
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Search query is required and cannot be empty');
@@ -151,17 +151,17 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       }
     }
 
-    console.log('[TEXT SEARCH] Searching for:', searchTerm);
-    console.log('[TEXT SEARCH] Repository:', repository || 'all documentation repos');
-    console.log('[TEXT SEARCH] File type:', file_type || 'all types');
-    console.log(`[TEXT SEARCH] Include content: ${include_content} (type: ${typeof include_content})`);
-    console.log('[TEXT SEARCH] Limit:', limit);
+    console.log('[SEARCH DOCS] Searching for:', searchTerm);
+    console.log('[SEARCH DOCS] Repository:', repository || 'all documentation repos');
+    console.log('[SEARCH DOCS] File type:', file_type || 'all types');
+    console.log(`[SEARCH DOCS] Include content: ${include_content} (type: ${typeof include_content})`);
+    console.log('[SEARCH DOCS] Limit:', limit);
     
     // Execute search - simplified approach using tagged template literals
     let results;
     
-    console.log('[TEXT SEARCH] About to execute SQL query');
-    console.log('[TEXT SEARCH] Strategy:', isCodeRepo ? 'modules' : isDocRepo ? 'documentation' : 'hybrid');
+    console.log('[SEARCH DOCS] About to execute SQL query');
+    console.log('[SEARCH DOCS] Strategy:', isCodeRepo ? 'modules' : isDocRepo ? 'documentation' : 'hybrid');
     
     // Execute search based on repository type
     if (isCodeRepo) {
@@ -183,7 +183,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
     }
     
-    console.log('[TEXT SEARCH] SQL query completed, results:', results?.length || 0);
+    console.log('[SEARCH DOCS] SQL query completed, results:', results?.length || 0);
 
     if (!results || (Array.isArray(results) && results.length === 0)) {
       return {
@@ -268,6 +268,9 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
       
       outputText += `\n`;
     });
+
+    // Add important reminder about using get_file_content
+    outputText += `\n📋 **IMPORTANT REMINDER**: These are only previews and snippets. For complete, accurate file content without truncation or potential hallucinations, always use the \`get_file_content\` tool with the exact filepath shown above. This ensures you get the full, unmodified source code or documentation.\n`;
 
     return {
       content: [{

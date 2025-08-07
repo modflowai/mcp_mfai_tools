@@ -936,6 +936,9 @@ export async function searchCode(
       }
     }
 
+    // Add important reminder about using get_file_content
+    output += `\n📋 **IMPORTANT REMINDER**: These are only previews and snippets. For complete, accurate file content without truncation or potential hallucinations, always use the \`get_file_content\` tool with the exact filepath shown above. This ensures you get the full, unmodified source code or documentation.\n`;
+
     return {
       content: [{
         type: "text" as const,

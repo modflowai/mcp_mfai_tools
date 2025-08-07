@@ -14,16 +14,14 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { neon } from '@neondatabase/serverless';
-// Import the four working tools
-import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./tools/text-search.js";
-import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
+// Import the six working tools
+import { searchDocsSchema, searchDocs } from "./tools/search-docs.js";
+import { semanticSearchDocsSchema, semanticSearchDocs } from "./tools/semantic-search-docs.js";
 import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
-import { searchExamplesSchema, searchExamples } from "./tools/search-examples.js";
-import { semanticSearchExamplesSchema, semanticSearchExamples } from "./tools/semantic-search-examples.js";
+import { searchTutorialsSchema, searchTutorials } from "./tools/search-tutorials.js";
+import { semanticSearchTutorialsSchema, semanticSearchTutorials } from "./tools/semantic-search-tutorials.js";
 
-// Use the imported text search schema
-const textSearchSchema = importedTextSearchSchema;
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -77,8 +75,6 @@ function parseUserList(envVar: string | undefined, defaultList: string[]): Set<s
   return new Set(users);
 }
 
-// Use the imported text search schema
-// const textSearchSchema = importedTextSearchSchema;
 
 export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   server: Server;
@@ -191,14 +187,14 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     // Register available tools
     const toolsList = [
       {
-        name: textSearchSchema.name,
-        description: textSearchSchema.description,
-        inputSchema: textSearchSchema.inputSchema,
+        name: searchDocsSchema.name,
+        description: searchDocsSchema.description,
+        inputSchema: searchDocsSchema.inputSchema,
       },
       {
-        name: semanticSearchSchema.name,
-        description: semanticSearchSchema.description,
-        inputSchema: semanticSearchSchema.inputSchema,
+        name: semanticSearchDocsSchema.name,
+        description: semanticSearchDocsSchema.description,
+        inputSchema: semanticSearchDocsSchema.inputSchema,
       },
       {
         name: getFileContentSchema.name,
@@ -211,14 +207,14 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         inputSchema: searchCodeSchema.inputSchema,
       },
       {
-        name: searchExamplesSchema.name,
-        description: searchExamplesSchema.description,
-        inputSchema: searchExamplesSchema.inputSchema,
+        name: searchTutorialsSchema.name,
+        description: searchTutorialsSchema.description,
+        inputSchema: searchTutorialsSchema.inputSchema,
       },
       {
-        name: semanticSearchExamplesSchema.name,
-        description: semanticSearchExamplesSchema.description,
-        inputSchema: semanticSearchExamplesSchema.inputSchema,
+        name: semanticSearchTutorialsSchema.name,
+        description: semanticSearchTutorialsSchema.description,
+        inputSchema: semanticSearchTutorialsSchema.inputSchema,
       }
     ];
     
@@ -236,11 +232,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       console.log('[MCP] Extracted args:', JSON.stringify(args, null, 2));
       
       switch (name) {
-        case 'text_search_repository':
-          return await this.handleTextSearchRepository(args);
+        case 'search_docs':
+          return await this.handleSearchDocs(args);
         
-        case 'semantic_search_repository':
-          return await this.handleSemanticSearchRepository(args);
+        case 'semantic_search_docs':
+          return await this.handleSemanticSearchDocs(args);
         
         case 'get_file_content':
           return await this.handleGetFileContent(args);
@@ -248,11 +244,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         case 'search_code':
           return await this.handleSearchCode(args);
         
-        case 'search_examples':
-          return await this.handleSearchExamples(args);
+        case 'search_tutorials':
+          return await this.handleSearchTutorials(args);
         
-        case 'semantic_search_examples':
-          return await this.handleSemanticSearchExamples(args);
+        case 'semantic_search_tutorials':
+          return await this.handleSemanticSearchTutorials(args);
         
         default:
           throw new McpError(
@@ -262,7 +258,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchExamplesSchema.name, semanticSearchExamplesSchema.name);
+    console.log("[MCP] Registered tools:", searchDocsSchema.name, semanticSearchDocsSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchTutorialsSchema.name, semanticSearchTutorialsSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -298,12 +294,12 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   }
   
   // Tool handler methods
-  private async handleTextSearchRepository(args: any) {
-    return await textSearchTool(args, this.sql);
+  private async handleSearchDocs(args: any) {
+    return await searchDocs(args, this.sql);
   }
   
-  private async handleSemanticSearchRepository(args: any) {
-    return await semanticSearchTool(args, this.sql, this.env.OPENAI_API_KEY);
+  private async handleSemanticSearchDocs(args: any) {
+    return await semanticSearchDocs(args, this.sql, this.env.OPENAI_API_KEY);
   }
   
   private async handleGetFileContent(args: any) {
@@ -314,11 +310,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     return await searchCode(args, this.sql);
   }
 
-  private async handleSearchExamples(args: any) {
-    return await searchExamples(args, this.sql);
+  private async handleSearchTutorials(args: any) {
+    return await searchTutorials(args, this.sql);
   }
 
-  private async handleSemanticSearchExamples(args: any) {
-    return await semanticSearchExamples(args, this.sql, this.env.OPENAI_API_KEY);
+  private async handleSemanticSearchTutorials(args: any) {
+    return await semanticSearchTutorials(args, this.sql, this.env.OPENAI_API_KEY);
   }
 }

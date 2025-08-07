@@ -20,21 +20,25 @@ This MCP server bridges the gap between AI assistants and the extensive MODFLOW/
 ### Specialized Search Tools
 Each tool is optimized for specific content types, ensuring relevant and accurate results:
 
-1. **Tutorial & Workflow Search** (`search_examples`)
-2. **API & Code Search** (`search_code`)  
-3. **Theory & Documentation Search** (`search_documentation`)
-4. **Direct File Retrieval** (`get_file_content`)
+1. **Tutorial & Workflow Search** (`search_examples`) - Advanced filtering and array search
+2. **Semantic Tutorial Search** (`semantic_search_examples`) - Concept-based tutorial discovery
+3. **API & Code Search** (`search_code`) - Multi-strategy search with rich metadata
+4. **Theory & Documentation Search** (`search_documentation`) - Focused theory search
+5. **Full-Text Search** (`text_search_repository`) - Cross-repository keyword search
+6. **Direct File Retrieval** (`get_file_content`) - Complete file access
 
 ## 📚 Available Tools
 
 ### 1. search_examples
-**Purpose**: Find tutorials, workflows, and practical implementations
+**Purpose**: Find tutorials, workflows, and practical implementations with advanced filtering
 
 **Features**:
+- **Feature Complete**: Advanced filtering by model type, packages, complexity
 - Returns complete working examples with code
+- Array search within use cases, prerequisites, and implementation tips
 - Includes complexity levels (beginner/intermediate/advanced)
 - Shows packages used and best use cases
-- Provides workflow purposes and practical applications
+- Enhanced snippet highlighting with configurable display options
 
 **Example Query & Response**:
 ```json
@@ -59,7 +63,36 @@ Response: {
 }
 ```
 
-### 2. search_code
+### 2. semantic_search_examples
+**Purpose**: Find tutorials using concept-based similarity search
+
+**Features**:
+- **Phase 0**: Minimal semantic search implementation
+- Uses OpenAI embeddings for conceptual matching
+- Finds tutorials by meaning rather than keywords
+- Returns similarity scores for relevance assessment
+- Designed for debugging and analysis of semantic search behavior
+
+**Example Query & Response**:
+```json
+Query: "parameter uncertainty analysis"
+
+Response: {
+  "results": [{
+    "title": "First-Order Second-Moment Analysis",
+    "similarity": 0.75,
+    "workflow_type": "uncertainty_analysis",
+    "complexity": "intermediate",
+    "description": "Linear uncertainty analysis for forecasts..."
+  }],
+  "search_metadata": {
+    "similarity_threshold": 0.7,
+    "embedding_model": "text-embedding-ada-002"
+  }
+}
+```
+
+### 3. search_code
 **Purpose**: Find API details, function signatures, and class definitions
 
 **Features**:
@@ -87,7 +120,35 @@ Response: {
 }
 ```
 
-### 3. search_documentation
+### 4. text_search_repository
+**Purpose**: Cross-repository full-text search with keyword matching
+
+**Features**:
+- Searches across all documentation, code, and tutorial repositories
+- Boolean operators and wildcard support  
+- Automatic acronym expansion (WEL → Well Package)
+- Highlighted search snippets with ts_headline
+- Repository filtering for focused results
+
+**Example Query & Response**:
+```json
+Query: "recharge package parameters"
+
+Response: {
+  "results": [{
+    "filepath": "mf6io/gwf-rch.md", 
+    "title": "Recharge Package Documentation",
+    "repository": "mf6",
+    "snippet": "The <mark>recharge</mark> <mark>package</mark> accepts <mark>parameters</mark> for..."
+  }],
+  "search_metadata": {
+    "method_used": "text",
+    "acronyms_detected": {}
+  }
+}
+```
+
+### 5. search_documentation
 **Purpose**: Find theoretical foundations and mathematical formulations
 
 **Features**:
@@ -114,7 +175,7 @@ Response: {
 }
 ```
 
-### 4. get_file_content
+### 6. get_file_content
 **Purpose**: Retrieve complete file content by exact path
 
 **Features**:

@@ -6,8 +6,8 @@
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 
-export const semanticSearchExamplesSchema = {
-  name: "semantic_search_examples",
+export const semanticSearchTutorialsSchema = {
+  name: "semantic_search_tutorials",
   description: `
     Semantic similarity search for tutorials using embedding vectors.
     Finds tutorials by meaning and concepts rather than keywords.
@@ -57,7 +57,7 @@ async function generateQueryEmbedding(query: string, openaiApiKey: string): Prom
   return data.data[0].embedding;
 }
 
-export async function semanticSearchExamples(args: any, sql: NeonQueryFunction<false, false>, openaiApiKey: string) {
+export async function semanticSearchTutorials(args: any, sql: NeonQueryFunction<false, false>, openaiApiKey: string) {
   try {
     const { 
       query, 
@@ -82,12 +82,12 @@ export async function semanticSearchExamples(args: any, sql: NeonQueryFunction<f
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log(`[SEMANTIC SEARCH EXAMPLES] Query: "${query}", Limit: ${limit}, Threshold: ${similarity_threshold}`);
+    console.log(`[SEMANTIC SEARCH TUTORIALS] Query: "${query}", Limit: ${limit}, Threshold: ${similarity_threshold}`);
 
     // Generate embedding for the query
-    console.log('[SEMANTIC SEARCH EXAMPLES] Generating query embedding...');
+    console.log('[SEMANTIC SEARCH TUTORIALS] Generating query embedding...');
     const queryEmbedding = await generateQueryEmbedding(query, openaiApiKey);
-    console.log(`[SEMANTIC SEARCH EXAMPLES] Generated embedding with ${queryEmbedding.length} dimensions`);
+    console.log(`[SEMANTIC SEARCH TUTORIALS] Generated embedding with ${queryEmbedding.length} dimensions`);
 
     // Search both FloPy and PyEMU workflows
     const allResults = [];
@@ -190,6 +190,9 @@ export async function semanticSearchExamples(args: any, sql: NeonQueryFunction<f
     output += `- Similarity threshold: ${similarity_threshold}\n`;
     output += `- Average similarity: ${(sortedResults.reduce((sum, r) => sum + r.similarity, 0) / sortedResults.length).toFixed(3)}\n`;
 
+    // Add important reminder about using get_file_content
+    output += `\n📋 **IMPORTANT REMINDER**: These are only previews and snippets. For complete, accurate file content without truncation or potential hallucinations, always use the \`get_file_content\` tool with the exact filepath shown above. This ensures you get the full, unmodified source code or documentation.\n`;
+
     return {
       content: [{
         type: "text" as const,
@@ -198,7 +201,7 @@ export async function semanticSearchExamples(args: any, sql: NeonQueryFunction<f
     };
 
   } catch (error) {
-    console.error('[SEMANTIC SEARCH EXAMPLES] Error:', error);
+    console.error('[SEMANTIC SEARCH TUTORIALS] Error:', error);
     return {
       content: [{
         type: "text" as const,

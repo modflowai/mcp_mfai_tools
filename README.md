@@ -59,14 +59,30 @@ mcp_mfai_tools/
 
 ### Tools Overview
 
-This MCP server provides **4 specialized search tools** designed for different use cases in the MODFLOW/PEST ecosystem:
+This MCP server provides **6 specialized search tools** designed for different use cases in the MODFLOW/PEST ecosystem:
 
-| Tool | Purpose | Best For | Key Features |
-|------|---------|----------|--------------|
-| **🧠 search_code** | API/module search | Function signatures, class definitions, troubleshooting | 5 search strategies, rich metadata, field control |
-| **📄 text_search_repository** | Full-text search | Exact keyword matching, technical terms | Boolean operators, wildcards, acronym expansion |
-| **🎯 semantic_search_repository** | Conceptual search | Finding similar concepts with different words | AI-powered vector search, conceptual matching |
-| **📁 get_file_content** | Direct file access | Complete file retrieval by exact path | No truncation, multi-table routing, GitHub links |
+| Tool | Purpose | Best For | Status |
+|------|---------|----------|---------|
+| **🎓 search_tutorials** | Tutorial/workflow search | Learning materials, step-by-step guides, tutorials | ✅ **FEATURE COMPLETE** |
+| **🧠 search_code** | API/module search | Function signatures, class definitions, troubleshooting | ✅ **WORKING** |
+| **📖 search_docs** | Documentation search | Mathematical theory, conceptual explanations | ✅ **WORKING** |
+| **🤖 semantic_search_tutorials** | Semantic tutorial search | Concept-based tutorial discovery | 🚧 **PHASE 0** |
+| **🔍 semantic_search_docs** | Semantic documentation search | Concept-based theory discovery | ✅ **WORKING** |
+| **📁 get_file_content** | Direct file access | Complete file retrieval by exact path | ✅ **WORKING** |
+
+### Architecture: Specialized Tools
+
+**Content-Focused Search (Phase 2)**:
+- **search_tutorials**: Tutorials and workflows ONLY (flopy_workflows, pyemu_workflows tables)
+- **search_code**: API and modules ONLY (flopy_modules, pyemu_modules tables)  
+- **search_docs**: Theory and references ONLY (repository_files table)
+
+**Semantic Search Tools**:
+- **semantic_search_docs**: Cross-repository semantic search
+- **semantic_search_tutorials**: Semantic similarity for tutorials (needs embedding regeneration)
+
+**Utility Tools**:
+- **get_file_content**: Direct file retrieval by exact path
 
 ### Detailed Tool Documentation
 

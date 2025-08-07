@@ -10,8 +10,8 @@
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 
-export const searchExamplesSchema = {
-  name: "search_examples",
+export const searchTutorialsSchema = {
+  name: "search_tutorials",
   description: `
     Search for tutorials, workflows, and working examples in FloPy and PyEMU.
     Supports filtering by model type, packages, complexity, and workflow type.
@@ -202,7 +202,7 @@ const buildArraySearchConditions = (query: string, arrayFields: string[] | undef
   return conditions.join(' OR ');
 };
 
-export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
+export async function searchTutorials(args: any, sql: NeonQueryFunction<false, false>) {
   try {
     // Parse array parameters that might come as JSON strings from MCP
     const parseArrayParam = (param: any): any[] | undefined => {
@@ -278,12 +278,12 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       };
     }
 
-    console.log(`[SEARCH EXAMPLES PHASE 2] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Snippet options: include=${include_snippet}, length=${snippet_length}, source=${snippet_source}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Array search: enabled=${search_arrays}, mode=${search_mode}, fields=${Array.isArray(array_fields) ? `[${array_fields.join(',')}]` : 'default'}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Package filters: packages=${Array.isArray(packages) ? `[${packages.join(',')}]` : packages}, has_packages=${has_packages}`);
+    console.log(`[SEARCH TUTORIALS] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
+    console.log(`[SEARCH TUTORIALS] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
+    console.log(`[SEARCH TUTORIALS] Snippet options: include=${include_snippet}, length=${snippet_length}, source=${snippet_source}`);
+    console.log(`[SEARCH TUTORIALS] Array search: enabled=${search_arrays}, mode=${search_mode}, fields=${Array.isArray(array_fields) ? `[${array_fields.join(',')}]` : 'default'}`);
+    console.log(`[SEARCH TUTORIALS] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}`);
+    console.log(`[SEARCH TUTORIALS] Package filters: packages=${Array.isArray(packages) ? `[${packages.join(',')}]` : packages}, has_packages=${has_packages}`);
 
     const allResults = [];
 
@@ -635,6 +635,9 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     output += activeOptions.length > 0 ? activeOptions.join(', ') : 'none';
     output += '\n';
 
+    // Add important reminder about using get_file_content
+    output += `\n📋 **IMPORTANT REMINDER**: These are only previews and snippets. For complete, accurate file content without truncation or potential hallucinations, always use the \`get_file_content\` tool with the exact filepath shown above. This ensures you get the full, unmodified source code or documentation.\n`;
+
     return {
       content: [{
         type: "text" as const,
@@ -643,7 +646,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     };
 
   } catch (error) {
-    console.error('[SEARCH EXAMPLES PHASE 2] Error:', error);
+    console.error('[SEARCH TUTORIALS] Error:', error);
     return {
       content: [{
         type: "text" as const,
