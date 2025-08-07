@@ -1,6 +1,6 @@
 /**
- * Search Examples Tool - Phase 2: Filtering Capabilities
- * Adds model type, package, complexity, and workflow filtering
+ * Search Examples Tool - Phase 1: Display Control Options
+ * Adds user-controlled display options to show/hide rich metadata
  * Tables: flopy_workflows, pyemu_workflows
  */
 
@@ -10,7 +10,7 @@ export const searchExamplesSchema = {
   name: "search_examples",
   description: `
     Search for tutorials, workflows, and working examples in FloPy and PyEMU.
-    Supports filtering by model type, packages, complexity, and workflow type.
+    Returns tutorials with user-controlled display of rich metadata.
     Searches ONLY workflow tables (flopy_workflows, pyemu_workflows).
   `,
   inputSchema: {
@@ -28,7 +28,6 @@ export const searchExamplesSchema = {
         type: 'number',
         description: 'Maximum results (1-50, default: 10)',
       },
-      
       // Phase 1: Display control options
       include_use_cases: {
         type: 'boolean',
@@ -57,41 +56,6 @@ export const searchExamplesSchema = {
       compact_arrays: {
         type: 'boolean',
         description: 'Show only first 2 items of arrays (default: false)',
-      },
-      
-      // Phase 2: Filtering options
-      model_type: {
-        type: 'string',
-        description: 'Filter by model type (mf6, mf6-gwf, mf2005, mt3d, mfnwt, modpath)',
-      },
-      packages: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Filter by packages used (e.g., WEL, DIS, RCH)',
-      },
-      has_packages: {
-        type: 'string',
-        enum: ['any', 'all'],
-        description: 'Match any or all specified packages (default: any)',
-      },
-      complexity: {
-        type: 'string',
-        enum: ['beginner', 'simple', 'intermediate', 'advanced'],
-        description: 'Filter by complexity level',
-      },
-      workflow_type: {
-        type: 'string',
-        description: 'Filter by workflow type (PyEMU only)',
-      },
-      pest_concepts: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Filter by PEST concepts (PyEMU only)',
-      },
-      uncertainty_methods: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Filter by uncertainty methods (PyEMU only)',
       },
     },
     required: ['query'],
@@ -124,19 +88,7 @@ const formatArray = (items: any[], compact: boolean, maxItems: number = 5): stri
 
 export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
   try {
-    const { 
-      query, 
-      repository, 
-      limit = 10,
-      // Filtering parameters
-      model_type,
-      packages,
-      has_packages = 'any',
-      complexity,
-      workflow_type,
-      pest_concepts,
-      uncertainty_methods
-    } = args;
+    const { query, repository, limit = 10 } = args;
     
     // Parse display options with MCP boolean compatibility
     const include_use_cases = parseBool(args.include_use_cases, false);
@@ -169,44 +121,13 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       };
     }
 
-    console.log(`[SEARCH EXAMPLES PHASE 2] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}, packages=${Array.isArray(packages) ? packages.join(',') : packages}`);
+    console.log(`[SEARCH EXAMPLES PHASE 1] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
+    console.log(`[SEARCH EXAMPLES PHASE 1] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
 
     const allResults = [];
 
-    // Search FloPy workflows with filtering
+    // Search FloPy workflows with additional fields
     if (validRepos.includes('flopy')) {
-      // Build WHERE clause with filters
-      const whereConditions = ['search_vector @@ plainto_tsquery(\'english\', $1)'];
-      const queryParams = [query];
-      let paramIndex = 2;
-      
-      if (model_type) {
-        whereConditions.push(`model_type = $${paramIndex}`);
-        queryParams.push(model_type);
-        paramIndex++;
-      }
-      
-      if (complexity) {
-        whereConditions.push(`complexity = $${paramIndex}`);
-        queryParams.push(complexity);
-        paramIndex++;
-      }
-      
-      // Package filtering
-      if (packages && Array.isArray(packages) && packages.length > 0) {
-        if (has_packages === 'all') {
-          // Must have ALL specified packages
-          whereConditions.push(`packages_used @> $${paramIndex}::text[]`);
-        } else {
-          // Must have ANY of the specified packages
-          whereConditions.push(`packages_used && $${paramIndex}::text[]`);
-        }
-        queryParams.push(packages);
-        paramIndex++;
-      }
-      
       const flopyQuery = `
         SELECT 
           tutorial_file as filepath,
@@ -224,58 +145,17 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
           ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
           'workflows' as source_type
         FROM flopy_workflows
-        WHERE ${whereConditions.join(' AND ')}
+        WHERE search_vector @@ plainto_tsquery('english', $1)
         ORDER BY relevance DESC
-        LIMIT $${paramIndex}
+        LIMIT $2
       `;
       
-      queryParams.push(limit);
-      
-      const flopyResults = await sql.query(flopyQuery, queryParams);
+      const flopyResults = await sql.query(flopyQuery, [query, limit]);
       allResults.push(...flopyResults);
     }
 
-    // Search PyEMU workflows with filtering
+    // Search PyEMU workflows with additional fields
     if (validRepos.includes('pyemu')) {
-      // Build WHERE clause with filters
-      const whereConditions = ['search_vector @@ plainto_tsquery(\'english\', $1)'];
-      const queryParams = [query];
-      let paramIndex = 2;
-      
-      if (workflow_type) {
-        whereConditions.push(`workflow_type = $${paramIndex}`);
-        queryParams.push(workflow_type);
-        paramIndex++;
-      }
-      
-      if (complexity) {
-        whereConditions.push(`complexity = $${paramIndex}`);
-        queryParams.push(complexity);
-        paramIndex++;
-      }
-      
-      // PEST concepts filtering
-      if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length > 0) {
-        if (has_packages === 'all') {
-          whereConditions.push(`pest_concepts @> $${paramIndex}::text[]`);
-        } else {
-          whereConditions.push(`pest_concepts && $${paramIndex}::text[]`);
-        }
-        queryParams.push(pest_concepts);
-        paramIndex++;
-      }
-      
-      // Uncertainty methods filtering
-      if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length > 0) {
-        if (has_packages === 'all') {
-          whereConditions.push(`uncertainty_methods @> $${paramIndex}::text[]`);
-        } else {
-          whereConditions.push(`uncertainty_methods && $${paramIndex}::text[]`);
-        }
-        queryParams.push(uncertainty_methods);
-        paramIndex++;
-      }
-      
       const pyemuQuery = `
         SELECT 
           notebook_file as filepath,
@@ -291,18 +171,15 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
           implementation_tips,
           best_practices,
           tags,
-          uncertainty_methods,
           ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
           'workflows' as source_type
         FROM pyemu_workflows
-        WHERE ${whereConditions.join(' AND ')}
+        WHERE search_vector @@ plainto_tsquery('english', $1)
         ORDER BY relevance DESC
-        LIMIT $${paramIndex}
+        LIMIT $2
       `;
       
-      queryParams.push(limit);
-      
-      const pyemuResults = await sql.query(pyemuQuery, queryParams);
+      const pyemuResults = await sql.query(pyemuQuery, [query, limit]);
       allResults.push(...pyemuResults);
     }
 
@@ -313,26 +190,10 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
 
     // Format output
     if (sortedResults.length === 0) {
-      let noResultsMsg = `No tutorials found for query: "${query}"`;
-      
-      // Add filter information to no results message
-      const activeFilters = [];
-      if (model_type) activeFilters.push(`model_type=${model_type}`);
-      if (complexity) activeFilters.push(`complexity=${complexity}`);
-      if (workflow_type) activeFilters.push(`workflow_type=${workflow_type}`);
-      if (packages && Array.isArray(packages) && packages.length) activeFilters.push(`packages=${packages.join(',')}`);
-      if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) activeFilters.push(`pest_concepts=${pest_concepts.join(',')}`);
-      if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) activeFilters.push(`uncertainty_methods=${uncertainty_methods.join(',')}`);
-      
-      if (activeFilters.length > 0) {
-        noResultsMsg += `\nActive filters: ${activeFilters.join(', ')}`;
-        noResultsMsg += `\nTry relaxing some filters for more results.`;
-      }
-      
       return {
         content: [{
           type: "text" as const,
-          text: noResultsMsg
+          text: `No tutorials found for query: "${query}"`
         }]
       };
     }
@@ -354,12 +215,6 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       if (result.packages_used && result.packages_used.length > 0) {
         const packages = result.packages_used.slice(0, 5).join(', ');
         output += `   Packages: ${packages}\n`;
-      }
-      
-      // Display uncertainty methods for PyEMU if present
-      if (result.uncertainty_methods && result.uncertainty_methods.length > 0) {
-        const methods = result.uncertainty_methods.slice(0, 3).join(', ');
-        output += `   Uncertainty Methods: ${methods}\n`;
       }
       
       // Display optional arrays based on user preferences
@@ -410,21 +265,6 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     output += `- Search term: "${query}"\n`;
     output += `- Repositories searched: ${validRepos.join(', ')}\n`;
     output += `- Results found: ${sortedResults.length}/${limit}\n`;
-    
-    // Display active filters
-    const activeFilters = [];
-    if (model_type) activeFilters.push(`model_type=${model_type}`);
-    if (complexity) activeFilters.push(`complexity=${complexity}`);
-    if (workflow_type) activeFilters.push(`workflow_type=${workflow_type}`);
-    if (packages && Array.isArray(packages) && packages.length) activeFilters.push(`packages=${packages.join(',')}`);
-    if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) activeFilters.push(`pest_concepts=${pest_concepts.join(',')}`);
-    if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) activeFilters.push(`uncertainty_methods=${uncertainty_methods.join(',')}`);
-    
-    if (activeFilters.length > 0) {
-      output += `- Active filters: ${activeFilters.join(', ')}\n`;
-    }
-    
-    // Display options
     output += `- Display options: `;
     const activeOptions = [];
     if (include_use_cases) activeOptions.push('use_cases');
@@ -445,7 +285,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     };
 
   } catch (error) {
-    console.error('[SEARCH EXAMPLES PHASE 2] Error:', error);
+    console.error('[SEARCH EXAMPLES PHASE 1] Error:', error);
     return {
       content: [{
         type: "text" as const,

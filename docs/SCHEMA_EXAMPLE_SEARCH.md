@@ -6,17 +6,18 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
 
 ✅ **Phase 0 COMPLETE**: Minimal search-examples tool deployed and working  
 ✅ **Phase 1.1 COMPLETE**: Display control options implemented and deployed  
-✅ **WORKING**: User-controlled display of rich metadata arrays  
-📊 **GOAL**: Continue adding filtering and advanced features
+✅ **Phase 2.1 COMPLETE**: Filtering capabilities added and deployed  
+✅ **WORKING**: Full filtering by model type, packages, complexity, workflow type  
+📊 **GOAL**: Continue with advanced search features
 
-### What's Implemented (Phase 0 + Phase 1.1)
+### What's Implemented (Phase 0 + Phase 1.1 + Phase 2.1)
 - Basic text search using `search_vector` and `plainto_tsquery`
 - Repository filtering (flopy, pyemu, or both)
 - Returns: title, description, complexity, model_type/workflow_type, packages
 - Relevance ranking with `ts_rank_cd`
 - Clean error handling and debug output
 - Limit parameter (1-50 results)
-- **NEW**: User-controlled display options:
+- **Phase 1.1**: User-controlled display options:
   - `include_use_cases`: Show best_use_cases/common_applications
   - `include_prerequisites`: Show prerequisites
   - `include_modifications`: Show common_modifications (FloPy only)
@@ -24,6 +25,14 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
   - `include_purpose`: Show full workflow_purpose
   - `include_tags`: Show tags
   - `compact_arrays`: Show only first 2 items of arrays
+- **Phase 2.1**: Advanced filtering capabilities:
+  - `model_type`: Filter by model type (mf6, mf6-gwf, mf2005, etc.)
+  - `packages`: Filter by packages used (array)
+  - `has_packages`: Match any or all packages (default: any)
+  - `complexity`: Filter by complexity level
+  - `workflow_type`: Filter by PyEMU workflow type
+  - `pest_concepts`: Filter by PEST concepts (PyEMU only)
+  - `uncertainty_methods`: Filter by uncertainty methods (PyEMU only)
 
 ## Database Schema Analysis
 
@@ -294,11 +303,12 @@ snippet_length: number          // Max snippet length (50-500)
 snippet_source: 'description' | 'purpose' | 'both'  // Which field to snippet
 ```
 
-### Phase 2: Advanced Filtering (LOW RISK - Uses Existing Indexes)
+### Phase 2: Advanced Filtering ✅ COMPLETE
 
-#### Step 2.1: Model and Package Filtering
+#### Step 2.1: Model and Package Filtering ✅ DEPLOYED
 **What**: Filter by model type and packages  
 **Risk**: Low - uses existing indexes  
+**Status**: Implemented and deployed to production  
 **Implementation**:
 ```typescript
 // FloPy-specific filters
@@ -561,9 +571,9 @@ mcp__mfaitools__search_examples({
 
 1. ✅ **Phase 0**: ~~Create minimal tool~~ COMPLETE
 2. ✅ **Phase 1.1**: ~~Implement display control options~~ COMPLETE
-3. **Phase 1.2**: Add snippet highlighting control
-4. **Phase 2.1**: Add model/package filtering
-5. **Phase 2.2**: Add complexity filtering
+3. ✅ **Phase 2.1**: ~~Add model/package/complexity filtering~~ COMPLETE
+4. **Phase 1.2**: Add snippet highlighting control
+5. **Phase 3.1**: Add rich array search
 6. **Monitor & Iterate**: Gather usage patterns and refine
 
 This roadmap ensures the search-examples tool becomes a powerful, user-controlled tutorial discovery system while maintaining simplicity and performance.
