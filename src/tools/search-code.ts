@@ -93,7 +93,7 @@ async function executeSearchStrategy(
     search_arrays?: boolean;
     search_source?: boolean;
   },
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   console.log(`[SEARCH CODE] Using search strategy: ${searchStrategy}`);
   
@@ -120,14 +120,16 @@ async function executeGeneralSearch(
   includeOptions: any,
   filterOptions: any,
   fieldSearchOptions: any,
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   // This is the existing search logic (current behavior)
   let results: any[] = [];
   let debugInfo: string[] = [];
+  console.log(`[GENERAL SEARCH] includeSnippet parameter: ${includeSnippet}, type: ${typeof includeSnippet}, value === false: ${includeSnippet === false}, value === true: ${includeSnippet === true}`);
   
   // Search flopy_modules (existing logic)
   if (!repository || repository === 'flopy') {
+    console.log(`[GENERAL SEARCH] Calling buildFloepyQuery with includeSnippet=${includeSnippet}`);
     const flopQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'general', filterOptions, fieldSearchOptions, includeSnippet);
     debugInfo.push(`FloPy general query: ${flopQuery}`);
     console.log('[SEARCH CODE] FloPy query (general):', flopQuery);
@@ -166,7 +168,7 @@ async function executePackageSearch(
   includeOptions: any,
   filterOptions: any,
   fieldSearchOptions: any,
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   // Strategy: Exact package code matching first, then general search
   let results: any[] = [];
@@ -205,7 +207,7 @@ async function executeErrorSearch(
   includeOptions: any,
   filterOptions: any,
   fieldSearchOptions: any,
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   // Strategy: Search error arrays first, then general search
   let results: any[] = [];
@@ -236,7 +238,7 @@ async function executeUsageSearch(
   includeOptions: any,
   filterOptions: any,
   fieldSearchOptions: any,
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   // Strategy: Search usage/scenario arrays first
   let results: any[] = [];
@@ -265,7 +267,7 @@ async function executeConceptSearch(
   includeOptions: any,
   filterOptions: any,
   fieldSearchOptions: any,
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): Promise<any[]> {
   // Strategy: Search concept arrays first
   let results: any[] = [];
@@ -309,11 +311,13 @@ function buildFloepyQuery(
   searchFocus: string = 'general',
   filterOptions: any = {},
   fieldSearchOptions: any = {},
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): string {
+  console.log(`[buildFloepyQuery] includeSnippet parameter value: ${includeSnippet}, type: ${typeof includeSnippet}`);
   const { include_github, include_scenarios, include_concepts, include_errors, include_source } = includeOptions;
   const { package_code, model_family } = filterOptions;
   const { search_docstring, search_purpose, search_arrays, search_source } = fieldSearchOptions;
+  console.log(`[buildFloepyQuery] includeSnippet: ${includeSnippet}`);
   
   let whereClause;
   let orderClause;
@@ -384,6 +388,15 @@ function buildFloepyQuery(
     orderClause = `ORDER BY ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   }
 
+  const snippetSQL = includeSnippet ? `
+      ts_headline('english', 
+        COALESCE(semantic_purpose, '') || ' ' || COALESCE(module_docstring, ''), 
+        to_tsquery('english', $1), 
+        'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+      ) as content_snippet,` : 'NULL as content_snippet,';
+  
+  console.log(`[buildFloepyQuery] snippet SQL generation: includeSnippet=${includeSnippet}, generated SQL=${snippetSQL.substring(0, 50)}...`);
+  
   return `
     SELECT 
       relative_path as filepath,
@@ -397,12 +410,7 @@ function buildFloepyQuery(
       ${include_concepts ? 'related_concepts,' : 'NULL as related_concepts,'}
       ${include_errors ? 'typical_errors,' : 'NULL as typical_errors,'}
       ${include_source ? 'LEFT(source_code, 500) as source_snippet,' : 'NULL as source_snippet,'}
-      ${includeSnippet ? `
-      ts_headline('english', 
-        COALESCE(semantic_purpose, '') || ' ' || COALESCE(module_docstring, ''), 
-        to_tsquery('english', $1), 
-        'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
-      ) as content_snippet,` : 'NULL as content_snippet,'}
+      ${snippetSQL}
       ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
       'modules' as search_source
     FROM flopy_modules
@@ -419,8 +427,9 @@ function buildPyemuQuery(
   searchFocus: string = 'general',
   filterOptions: any = {},
   fieldSearchOptions: any = {},
-  includeSnippet: boolean = true
+  includeSnippet: boolean
 ): string {
+  console.log(`[buildPyemuQuery] includeSnippet parameter value: ${includeSnippet}, type: ${typeof includeSnippet}`);
   const { include_github, include_scenarios, include_concepts, include_errors, include_pest, include_source } = includeOptions;
   const { category } = filterOptions;
   const { search_docstring, search_purpose, search_arrays, search_source } = fieldSearchOptions;
@@ -500,6 +509,15 @@ function buildPyemuQuery(
     orderClause = `ORDER BY ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   }
 
+  const snippetSQL = includeSnippet ? `
+      ts_headline('english', 
+        COALESCE(semantic_purpose, '') || ' ' || COALESCE(module_docstring, ''), 
+        to_tsquery('english', $1), 
+        'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
+      ) as content_snippet,` : 'NULL as content_snippet,';
+  
+  console.log(`[buildPyemuQuery] snippet SQL generation: includeSnippet=${includeSnippet}, generated SQL=${snippetSQL.substring(0, 50)}...`);
+  
   return `
     SELECT 
       relative_path as filepath,
@@ -515,12 +533,7 @@ function buildPyemuQuery(
       ${include_errors ? 'common_pitfalls,' : 'NULL as common_pitfalls,'}
       ${include_pest ? 'pest_integration,' : 'NULL as pest_integration,'}
       ${include_source ? 'LEFT(source_code, 500) as source_snippet,' : 'NULL as source_snippet,'}
-      ${includeSnippet ? `
-      ts_headline('english', 
-        COALESCE(semantic_purpose, '') || ' ' || COALESCE(module_docstring, ''), 
-        to_tsquery('english', $1), 
-        'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
-      ) as content_snippet,` : 'NULL as content_snippet,'}
+      ${snippetSQL}
       ${searchFocus === 'error' ? `
       CASE WHEN (
         array_to_string(common_pitfalls, ' ') ILIKE $2
@@ -673,33 +686,53 @@ export async function searchCode(
   sql: NeonQueryFunction<false, false>
 ) {
   try {
+    console.log('[SEARCH CODE] Raw args received:', JSON.stringify(args));
+    
+    // Parse boolean values that might come as strings
+    const parseBool = (value: any, defaultValue: boolean): boolean => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        if (value.toLowerCase() === 'false') return false;
+        if (value.toLowerCase() === 'true') return true;
+      }
+      return defaultValue;
+    };
+    
     const { 
       query, 
       repository, 
       limit = 10,
-      include_scenarios = false,
-      include_concepts = false,
-      include_errors = false,
-      include_pest = false,
-      include_source = false,
-      include_github = true,
-      // Phase 1.2: Enhanced formatting options
-      max_array_items = 3,
-      snippet_length = 150,
-      compact_format = false,
-      // Phase 2: Search strategy options
-      search_type = 'general',
-      // Phase 2.2: User-controlled filters
-      package_code,
-      model_family,
-      category,
-      // Phase 3.1: User-controlled field search
-      search_docstring = false,
-      search_purpose = false,
-      search_arrays = false,
-      search_source = false,
-      include_snippet = true
     } = args;
+    
+    // Parse all boolean options with proper type conversion
+    const include_scenarios = parseBool(args.include_scenarios, false);
+    const include_concepts = parseBool(args.include_concepts, false);
+    const include_errors = parseBool(args.include_errors, false);
+    const include_pest = parseBool(args.include_pest, false);
+    const include_source = parseBool(args.include_source, false);
+    const include_github = parseBool(args.include_github, true);
+    
+    // Phase 1.2: Enhanced formatting options
+    const max_array_items = args.max_array_items || 3;
+    const snippet_length = args.snippet_length || 150;
+    const compact_format = parseBool(args.compact_format, false);
+    
+    // Phase 2: Search strategy options
+    const search_type = args.search_type || 'general';
+    
+    // Phase 2.2: User-controlled filters
+    const package_code = args.package_code;
+    const model_family = args.model_family;
+    const category = args.category;
+    
+    // Phase 3.1: User-controlled field search
+    const search_docstring = parseBool(args.search_docstring, false);
+    const search_purpose = parseBool(args.search_purpose, false);
+    const search_arrays = parseBool(args.search_arrays, false);
+    const search_source = parseBool(args.search_source, false);
+    const include_snippet = parseBool(args.include_snippet, true);
+    
+    console.log(`[SEARCH CODE] After parsing: include_snippet=${include_snippet}, type=${typeof include_snippet}, original value=${args.include_snippet}, original type=${typeof args.include_snippet}`);
 
     // Validate formatting parameters
     const maxItems = Math.min(Math.max(max_array_items || 3, 1), 10);
@@ -790,6 +823,7 @@ export async function searchCode(
       search_source
     };
     
+    console.log(`[SEARCH CODE] About to call executeSearchStrategy with include_snippet=${include_snippet}, type=${typeof include_snippet}`);
     let results = await executeSearchStrategy(
       sql,
       searchStrategy,
@@ -856,6 +890,7 @@ export async function searchCode(
       }
       
       // Highlighted content snippet
+      console.log(`[SNIPPET DEBUG] content_snippet exists: ${!!result.content_snippet}, include_snippet value: ${include_snippet}, should show: ${!!(result.content_snippet && include_snippet !== false)}`);
       if (result.content_snippet && include_snippet !== false) {
         output += `   Snippet: ${result.content_snippet}\n`;
       }
@@ -872,6 +907,7 @@ export async function searchCode(
     output += `- Search term: "${searchTerm}"\n`;
     output += `- Repository: ${repository || 'all'}\n`;
     output += `- Search strategy: ${searchStrategy}\n`;
+    output += `- Include snippet: ${include_snippet} (type: ${typeof include_snippet})\n`;
     output += `- Rich arrays requested: ${[
       include_scenarios && 'scenarios',
       include_concepts && 'concepts', 

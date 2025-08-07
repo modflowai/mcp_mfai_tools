@@ -75,7 +75,21 @@ export const textSearchSchema = {
 export async function textSearchTool(args: any, sql: NeonQueryFunction<false, false>) {
   try {
     console.log('[TEXT SEARCH] Starting text search with args:', args);
-    const { query, repository, file_type, limit = 15, include_content = true } = args;
+    
+    // Parse boolean values that might come as strings from MCP
+    const parseBool = (value: any, defaultValue: boolean): boolean => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        if (value.toLowerCase() === 'false') return false;
+        if (value.toLowerCase() === 'true') return true;
+      }
+      return defaultValue;
+    };
+    
+    const { query, repository, file_type, limit = 15 } = args;
+    const include_content = parseBool(args.include_content, true);
+    
+    console.log(`[TEXT SEARCH] After parsing: include_content=${include_content}, type=${typeof include_content}, original=${args.include_content}, original type=${typeof args.include_content}`);
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Search query is required and cannot be empty');
@@ -109,8 +123,8 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     
     for (const word of words) {
       const upperWord = word.toUpperCase();
-      if (acronymMappings[upperWord]) {
-        const mapping = acronymMappings[upperWord];
+      if ((acronymMappings as any)[upperWord]) {
+        const mapping = (acronymMappings as any)[upperWord];
         // For tsquery, we need to format it properly
         const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
         expandedTerms.push(`(${word} | ${fullTerms})`);
@@ -140,7 +154,7 @@ export async function textSearchTool(args: any, sql: NeonQueryFunction<false, fa
     console.log('[TEXT SEARCH] Searching for:', searchTerm);
     console.log('[TEXT SEARCH] Repository:', repository || 'all documentation repos');
     console.log('[TEXT SEARCH] File type:', file_type || 'all types');
-    console.log('[TEXT SEARCH] Include content:', include_content);
+    console.log(`[TEXT SEARCH] Include content: ${include_content} (type: ${typeof include_content})`);
     console.log('[TEXT SEARCH] Limit:', limit);
     
     // Execute search - simplified approach using tagged template literals
@@ -280,6 +294,7 @@ async function searchModulesWithText(
   limit: number,
   include_content: boolean
 ): Promise<SearchResultItem[]> {
+  console.log(`[searchModulesWithText] include_content=${include_content}, type=${typeof include_content}`);
   let results;
   if (repository === 'flopy') {
     const queryString = `
@@ -366,6 +381,7 @@ async function searchDocumentationWithText(
   limit: number,
   include_content: boolean
 ): Promise<SearchResultItem[]> {
+  console.log(`[searchDocumentationWithText] include_content=${include_content}, type=${typeof include_content}`);
   // Build conditions
   let whereClause = `WHERE (
     COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
@@ -444,6 +460,7 @@ async function searchWorkflowsWithText(
   limit: number,
   include_content: boolean
 ): Promise<SearchResultItem[]> {
+  console.log(`[searchWorkflowsWithText] include_content=${include_content}, type=${typeof include_content}`);
   let results;
   if (repository === 'flopy') {
     const queryString = `
