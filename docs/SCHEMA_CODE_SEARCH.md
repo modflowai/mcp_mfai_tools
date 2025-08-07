@@ -260,14 +260,14 @@ mcp__mfaitools__search_code({
 })
 ```
 
-### Phase 3: Advanced Multi-Field Search (MEDIUM RISK - Query Changes)
+### Phase 3: Field-Specific Search (LOW RISK - User-Controlled)
 
 #### Step 3.1: User-Controlled Field Search
 **What**: Let user choose which fields to search beyond `search_vector`  
-**Risk**: Medium - affects query performance  
+**Risk**: Low - optional parameters with clear SQL performance characteristics  
 **Implementation**:
 ```typescript
-// Search scope options
+// Search scope options (all default: false)
 search_docstring: boolean     // Include module_docstring in search
 search_purpose: boolean       // Include semantic_purpose in search  
 search_arrays: boolean        // Include array fields in search
@@ -294,61 +294,15 @@ WHERE (
 )
 ```
 
-#### Step 3.2: Multi-Stage Search with User Control
-**What**: Let user enable multi-stage search strategies  
-**Risk**: Medium - multiple queries, increased complexity  
-**Implementation**:
-```typescript
-multi_stage: boolean          // Enable intelligent multi-stage search
-max_stages: number           // Limit number of search stages (1-4)
-```
-
-**Multi-Stage Logic** (only when user enables):
-1. **Stage 1**: Exact matches (package codes, module names)
-2. **Stage 2**: Targeted field search (based on search_type)  
-3. **Stage 3**: Array field search (scenarios, concepts, errors)
-4. **Stage 4**: General fallback search
-
-**Query Example**:
-```bash
-mcp__mfaitools__search_code({
-  query: "SMS convergence problem",
-  search_type: "error",
-  multi_stage: true,
-  max_stages: 3
-})
-```
-
-### Phase 4: Advanced User Controls (MEDIUM RISK - Complex Features)
-
-#### Step 4.1: Result Ranking Control
-**What**: Let user control how results are ranked and sorted  
-**Risk**: Medium - affects result ordering logic  
-**Implementation**:
-```typescript
-sort_by: 'relevance' | 'package' | 'family' | 'date' | 'name'
-boost_exact_matches: boolean  // Boost exact package code matches
-boost_recent: boolean         // Boost recently modified modules
-```
-
-#### Step 4.2: Advanced Output Control
-**What**: Granular control over result presentation  
-**Risk**: Medium - complex formatting logic  
-**Implementation**:  
-```typescript
-output_format: 'standard' | 'detailed' | 'compact'
-snippet_length: number        // Control snippet truncation
-max_array_items: number       // Limit array items shown
-group_by_package: boolean     // Group results by package code
-```
+**Why This is Sufficient**: Users can explicitly control which fields are searched. No complex multi-stage logic needed - just clear, predictable SQL queries based on user preferences.
 
 ## Implementation Strategy
 
-### Schema Changes Required
+### Final Schema (Simple and User-Controlled)
 ```typescript
 export const searchCodeSchema = {
   name: "search_code",
-  description: "Search MODFLOW/PEST code modules with user-controlled search strategies and output options",
+  description: "Search MODFLOW/PEST code modules with user-controlled search strategies and display options",
   inputSchema: {
     type: 'object',
     properties: {
@@ -391,6 +345,10 @@ export const searchCodeSchema = {
         type: 'boolean',
         description: 'Include GitHub URLs (default: true)'
       },
+      include_snippet: {
+        type: 'boolean',
+        description: 'Include highlighted content snippets (default: false)'
+      },
       
       // Phase 2: Search strategy  
       search_type: {
@@ -413,7 +371,7 @@ export const searchCodeSchema = {
         description: 'Filter PyEMU by category (core, utils, plot)'
       },
       
-      // Phase 3: Advanced search
+      // Phase 3: Field search
       search_docstring: {
         type: 'boolean',
         description: 'Include module docstring in search (default: false)'
@@ -429,10 +387,6 @@ export const searchCodeSchema = {
       search_source: {
         type: 'boolean',
         description: 'Include source code in search (default: false)'
-      },
-      multi_stage: {
-        type: 'boolean',
-        description: 'Enable multi-stage search strategy (default: false)'
       }
     },
     required: ['query']
@@ -492,25 +446,47 @@ mcp__mfaitools__search_code({
 })
 ```
 
-### Comprehensive Research
+### Field-Specific Search
 ```bash
-# Deep dive into a concept
+# Search in docstrings and arrays
 mcp__mfaitools__search_code({
-  query: "first order second moment",
-  search_type: "concept", 
-  multi_stage: true,
-  include_concepts: true,
-  include_source: true,
-  search_arrays: true
+  query: "array size mismatch",
+  search_arrays: true,
+  search_docstring: true,
+  include_errors: true
 })
 ```
 
+## Simplified Roadmap (No Overkill)
+
+### Phase 1: Enhanced Display (IMPLEMENTED ✅)
+- User-controlled rich metadata display  
+- GitHub URLs, snippets, array formatting
+- Boolean parameter parsing fix
+
+### Phase 2: Search Strategies (IMPLEMENTED ✅) 
+- 5 search types: general, package, error, usage, concept
+- Filters: package_code, model_family, category
+- User controls search focus without complexity
+
+### Phase 3: Field Search (PLANNED)
+- User-controlled field inclusion in search
+- Simple OR clauses based on user preferences
+- No multi-stage complexity - just direct field control
+
+### End State
+**Simple, user-controlled tool** where users explicitly choose:
+- What to display (arrays, snippets, GitHub URLs)
+- How to search (strategy + filters) 
+- Which fields to include in search
+
+**No hardcoded logic, no multi-stage complexity, no "intelligent" assumptions.**
+
 ## Next Steps
 
-1. **Phase 1, Step 1.1**: Implement rich array display options  
-2. **Test thoroughly**: Verify output quality and backward compatibility
-3. **Phase 1, Step 1.2**: Enhanced formatting for rich content
-4. **Phase 2, Step 2.1**: Add search_type parameter with strategies
-5. **Continue incrementally**: Each step tested and deployed before next
+1. ✅ **Phase 1 Complete**: Rich display options working
+2. ✅ **Phase 2 Complete**: Search strategies and filters working  
+3. **Phase 3 Only**: Add field search options when user requests them
+4. **Done**: Simple, powerful, user-controlled search tool
 
-This roadmap ensures users have full control over their search experience while maintaining the stability and simplicity of the current working tool.
+This roadmap focuses on **user control** without overengineering. Users get exactly what they ask for, nothing more, nothing less.

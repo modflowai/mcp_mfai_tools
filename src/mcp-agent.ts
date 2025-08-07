@@ -19,6 +19,7 @@ import { textSearchSchema as importedTextSearchSchema, textSearchTool } from "./
 import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-search.js";
 import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
+import { searchExamplesSchema, searchExamples } from "./tools/search-examples.js";
 
 // Use the imported text search schema
 const textSearchSchema = importedTextSearchSchema;
@@ -207,6 +208,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         name: searchCodeSchema.name,
         description: searchCodeSchema.description,
         inputSchema: searchCodeSchema.inputSchema,
+      },
+      {
+        name: searchExamplesSchema.name,
+        description: searchExamplesSchema.description,
+        inputSchema: searchExamplesSchema.inputSchema,
       }
     ];
     
@@ -236,6 +242,9 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         case 'search_code':
           return await this.handleSearchCode(args);
         
+        case 'search_examples':
+          return await this.handleSearchExamples(args);
+        
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -244,7 +253,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name);
+    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchExamplesSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -294,5 +303,9 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   
   private async handleSearchCode(args: any) {
     return await searchCode(args, this.sql);
+  }
+
+  private async handleSearchExamples(args: any) {
+    return await searchExamples(args, this.sql);
   }
 }
