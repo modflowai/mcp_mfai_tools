@@ -1,270 +1,291 @@
 /**
- * Search Examples Tool
- * Searches for tutorials, workflows, complete implementations, and step-by-step guides
- * Focuses on workflow tables (flopy_workflows, pyemu_workflows) with examples and tutorials
+ * Search Examples Tool - Phase 1: Display Control Options
+ * Adds user-controlled display options to show/hide rich metadata
+ * Tables: flopy_workflows, pyemu_workflows
  */
 
 import type { NeonQueryFunction } from "@neondatabase/serverless";
-import acronymMappings from './acronym-mappings.json';
 
 export const searchExamplesSchema = {
   name: "search_examples",
-  description: "Search for tutorials, workflows, complete implementations, step-by-step guides, and working code examples. Use when user wants: tutorials, working examples, step-by-step implementations, workflow demonstrations, practical applications, or learning materials. Searches ONLY FloPy and PyEMU workflow tables (flopy_workflows, pyemu_workflows) with rich metadata including complexity levels, best use cases, and packages used. Available repositories: flopy, pyemu.",
+  description: `
+    Search for tutorials, workflows, and working examples in FloPy and PyEMU.
+    Returns tutorials with user-controlled display of rich metadata.
+    Searches ONLY workflow tables (flopy_workflows, pyemu_workflows).
+  `,
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'Search query for examples and tutorials',
+        description: 'Search query for tutorials and examples',
       },
       repository: {
         type: 'string',
-        description: 'Repository to search: flopy, pyemu',
+        description: 'Repository to search: flopy, pyemu, or omit for all',
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of results (1-50, default: 10)',
+        description: 'Maximum results (1-50, default: 10)',
+      },
+      // Phase 1: Display control options
+      include_use_cases: {
+        type: 'boolean',
+        description: 'Include best_use_cases/common_applications (default: false)',
+      },
+      include_prerequisites: {
+        type: 'boolean',
+        description: 'Include prerequisites (default: false)',
+      },
+      include_modifications: {
+        type: 'boolean',
+        description: 'Include common_modifications (FloPy only, default: false)',
+      },
+      include_tips: {
+        type: 'boolean',
+        description: 'Include implementation_tips/best_practices (PyEMU only, default: false)',
+      },
+      include_purpose: {
+        type: 'boolean',
+        description: 'Include full workflow_purpose (can be long, default: false)',
+      },
+      include_tags: {
+        type: 'boolean',
+        description: 'Include tags (default: false)',
+      },
+      compact_arrays: {
+        type: 'boolean',
+        description: 'Show only first 2 items of arrays (default: false)',
       },
     },
     required: ['query'],
   }
 };
 
-interface ExampleResult {
-  filepath: string;
-  repo_name: string;
-  github_url?: string;
-  title?: string;
-  summary?: string;
-  complexity?: string;
-  workflow_type?: string;
-  packages_used?: string[];
-  tags?: string[];
-  best_use_cases?: string[];
-  workflow_purpose?: string;
-  similarity_score?: number;
-  search_rank?: number;
-  snippet?: string;
-  search_source: 'workflows' | 'documentation';
-}
+// Helper for boolean parameter parsing (MCP compatibility)
+const parseBool = (value: any, defaultValue: boolean): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'false') return false;
+    if (value.toLowerCase() === 'true') return true;
+  }
+  return defaultValue;
+};
 
-interface ExampleSearchResponse {
-  results: ExampleResult[];
-  search_metadata: {
-    method_used: 'text' | 'semantic' | 'hybrid';
-    total_results: number;
-    coverage: 'examples';
-    query_analyzed: string;
-    acronyms_detected?: {
-      [key: string]: string;
-    };
-  };
-  recommendations?: {
-    try_also?: string;
-    reason?: string;
-    suggested_query?: string;
-  };
-}
-
-// Intelligent search method selection
-function selectSearchMethod(query: string, searchType: string): 'text' | 'semantic' | 'hybrid' {
-  if (searchType === 'text') return 'text';
-  if (searchType === 'semantic') return 'semantic';
+// Helper to format arrays with compact option
+const formatArray = (items: any[], compact: boolean, maxItems: number = 5): string => {
+  if (!items || !Array.isArray(items) || items.length === 0) return '';
   
-  // Auto-selection based on query characteristics
-  const hasSpecificTerms = /\b(package|function|parameter|class|method|API)\b/i.test(query);
-  const hasQuotes = /["'].*["']/.test(query);
-  const isConceptual = /\b(how to|example|tutorial|workflow|guide|learn)\b/i.test(query);
+  const displayItems = compact ? items.slice(0, 2) : items.slice(0, maxItems);
+  let result = displayItems.map((item, i) => `     ${i + 1}. ${item}`).join('\n');
   
-  if (hasQuotes || hasSpecificTerms) return 'text';
-  if (isConceptual) return 'semantic';
-  return 'hybrid';
-}
-
-// Generate smart recommendations
-function generateRecommendations(query: string, results: ExampleResult[], method: string): ExampleSearchResponse['recommendations'] {
-  const hasCodePackages = results.some(r => r.packages_used?.length);
-  const hasComplexExamples = results.some(r => r.complexity === 'advanced');
-  
-  // Check if query contains any known package acronyms
-  const queryWords = query.toLowerCase().split(/\s+/);
-  const isSpecificPackage = queryWords.some(word => word.toUpperCase() in acronymMappings);
-  
-  if (isSpecificPackage && hasCodePackages && method !== 'hybrid') {
-    return {
-      try_also: 'search_code',
-      reason: 'For specific API parameters and implementation details',
-      suggested_query: `${query.split(' ')[0]} package constructor parameters`
-    };
+  if (items.length > displayItems.length) {
+    result += `\n     ... and ${items.length - displayItems.length} more`;
   }
   
-  if (results.length > 0 && !hasComplexExamples) {
-    return {
-      try_also: 'search_documentation',
-      reason: 'For theoretical background and detailed explanations',
-      suggested_query: `${query} theory mathematical background`
-    };
-  }
-  
-  return undefined;
-}
-
-// Search workflows with text method
-async function searchWorkflowsWithText(query: string, sql: NeonQueryFunction<false, false>, repository?: string, complexity?: string, limit: number = 10) {
-  const repositories = repository ? [repository] : ['flopy', 'pyemu'];
-  const workflowRepos = repositories.filter(r => ['flopy', 'pyemu'].includes(r));
-  
-  if (workflowRepos.length === 0) return [];
-  
-  const complexityFilter = complexity ? 'AND fw.complexity = $3' : '';
-  const params = complexity ? [query, limit, complexity] : [query, limit];
-  
-  const workflowQueries = workflowRepos.map(repo => {
-    const tableName = `${repo}_workflows`;
-    const fileColumn = repo === 'flopy' ? 'tutorial_file' : 'notebook_file';
-    let queryStr = `
-      SELECT 
-        fw.${fileColumn} as filepath,
-        '${repo}' as repo_name,
-        CASE 
-          WHEN '${repo}' = 'flopy' AND fw.${fileColumn} LIKE 'scripts/ex-%' THEN 'https://github.com/MODFLOW-ORG/modflow6-examples/blob/develop/' || fw.${fileColumn}
-          WHEN '${repo}' = 'flopy' THEN 'https://github.com/modflowpy/flopy/blob/develop/' || fw.${fileColumn}
-          WHEN '${repo}' = 'pyemu' THEN 'https://github.com/pypest/pyemu/blob/develop/' || fw.${fileColumn}
-          ELSE NULL
-        END as github_url,
-        fw.title as title,
-        fw.description as summary,
-        fw.complexity,
-        ${repo === 'flopy' ? 'fw.model_type as workflow_type' : 'fw.workflow_type'},
-        ${repo === 'flopy' ? 'fw.packages_used' : 'fw.pyemu_modules as packages_used'},
-        fw.tags,
-        ${repo === 'flopy' ? 'fw.best_use_cases' : 'fw.common_applications as best_use_cases'},
-        fw.workflow_purpose,
-        ts_rank_cd(
-          to_tsvector('english', 
-            coalesce(fw.title, '') || ' ' ||
-            coalesce(fw.description, '') || ' ' ||
-            coalesce(fw.workflow_purpose, '') || ' ' ||
-            array_to_string(fw.tags, ' ')
-          ),
-          plainto_tsquery('english', $1)
-        ) as search_rank,
-        ts_headline('english',
-          coalesce(fw.description, fw.workflow_purpose, ''),
-          plainto_tsquery('english', $1),
-          'MaxWords=20, MinWords=10, MaxFragments=1'
-        ) as snippet,
-        'workflows' as search_source
-      FROM ${tableName} fw
-      WHERE to_tsvector('english', 
-        coalesce(fw.title, '') || ' ' ||
-        coalesce(fw.description, '') || ' ' ||
-        coalesce(fw.workflow_purpose, '') || ' ' ||
-        array_to_string(fw.tags, ' ')
-      ) @@ plainto_tsquery('english', $1)
-      ${complexity ? `AND fw.complexity = '${complexity}'` : ''}
-      ORDER BY search_rank DESC
-      LIMIT $2
-    `;
-    return sql.query(queryStr, [query, limit]);
-  });
-  
-  const results = await Promise.all(workflowQueries);
-  return results.flat().sort((a: any, b: any) => (b.search_rank || 0) - (a.search_rank || 0));
-}
-
-// Search workflows with semantic method  
-async function searchWorkflowsWithEmbeddings(query: string, sql: NeonQueryFunction<false, false>, repository?: string, complexity?: string, limit: number = 10) {
-  // For now, fall back to text search with enhanced ranking
-  // TODO: Implement true embedding search when embeddings are available for workflows
-  const results = await searchWorkflowsWithText(query, sql, repository, complexity, limit);
-  
-  // Add similarity scores based on text ranking
-  return results.map((result: any) => ({
-    ...result,
-    similarity_score: result.search_rank || 0
-  }));
-}
+  return result;
+};
 
 export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
   try {
-    // Handle both direct args and potentially wrapped args
-    const actualArgs = args || {};
+    const { query, repository, limit = 10 } = args;
     
-    const { query, search_type = 'auto', repository, complexity, limit = 10 } = actualArgs;
+    // Parse display options with MCP boolean compatibility
+    const include_use_cases = parseBool(args.include_use_cases, false);
+    const include_prerequisites = parseBool(args.include_prerequisites, false);
+    const include_modifications = parseBool(args.include_modifications, false);
+    const include_tips = parseBool(args.include_tips, false);
+    const include_purpose = parseBool(args.include_purpose, false);
+    const include_tags = parseBool(args.include_tags, false);
+    const compact_arrays = parseBool(args.compact_arrays, false);
 
+    // Input validation
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       throw new Error('Query parameter is required and cannot be empty');
     }
 
-    if (limit && (limit < 1 || limit > 50)) {
+    if (limit < 1 || limit > 50) {
       throw new Error('Limit must be between 1 and 50');
     }
 
-    // Detect acronyms in the query
-    const queryWords = query.toLowerCase().split(/\s+/);
-    const detectedAcronyms: { [key: string]: string } = {};
+    // Determine which repositories to search
+    const repositories = repository ? [repository] : ['flopy', 'pyemu'];
+    const validRepos = repositories.filter(r => ['flopy', 'pyemu'].includes(r));
     
-    for (const word of queryWords) {
-      const upperWord = word.toUpperCase();
-      if (upperWord in acronymMappings) {
-        detectedAcronyms[upperWord] = (acronymMappings as any)[upperWord].full;
-      }
+    if (validRepos.length === 0) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: "No tutorials found. Repository must be 'flopy' or 'pyemu'."
+        }]
+      };
     }
 
-    const method = selectSearchMethod(query, search_type);
-    
-    console.log(`[SEARCH EXAMPLES] Query: "${query}", Method: ${method}, Repository: ${repository || 'all'}, Complexity: ${complexity || 'any'}`);
+    console.log(`[SEARCH EXAMPLES PHASE 1] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
+    console.log(`[SEARCH EXAMPLES PHASE 1] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
 
-    let workflowResults: any[] = [];
-    
-    if (method === 'semantic') {
-      workflowResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, limit);
-    } else if (method === 'text') {
-      workflowResults = await searchWorkflowsWithText(query, sql, repository, complexity, limit);
-    } else {
-      // Hybrid: combine both methods
-      const semanticResults = await searchWorkflowsWithEmbeddings(query, sql, repository, complexity, Math.ceil(limit / 2));
-      const textResults = await searchWorkflowsWithText(query, sql, repository, complexity, Math.ceil(limit / 2));
+    const allResults = [];
+
+    // Search FloPy workflows with additional fields
+    if (validRepos.includes('flopy')) {
+      const flopyQuery = `
+        SELECT 
+          tutorial_file as filepath,
+          'flopy' as repo_name,
+          title,
+          description,
+          complexity,
+          model_type,
+          packages_used,
+          workflow_purpose,
+          best_use_cases,
+          prerequisites,
+          common_modifications,
+          tags,
+          ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
+          'workflows' as source_type
+        FROM flopy_workflows
+        WHERE search_vector @@ plainto_tsquery('english', $1)
+        ORDER BY relevance DESC
+        LIMIT $2
+      `;
       
-      // Merge and deduplicate
-      const seen = new Set();
-      workflowResults = [...semanticResults, ...textResults].filter((result: any) => {
-        const key = `${result.repo_name}:${result.filepath}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const flopyResults = await sql.query(flopyQuery, [query, limit]);
+      allResults.push(...flopyResults);
     }
-    
-    // ONLY return workflow results - NO documentation
-    const allResults = workflowResults
-      .sort((a, b) => (b.similarity_score || b.search_rank || 0) - (a.similarity_score || a.search_rank || 0))
+
+    // Search PyEMU workflows with additional fields
+    if (validRepos.includes('pyemu')) {
+      const pyemuQuery = `
+        SELECT 
+          notebook_file as filepath,
+          'pyemu' as repo_name,
+          title,
+          description,
+          complexity,
+          workflow_type as model_type,
+          pest_concepts as packages_used,
+          workflow_purpose,
+          common_applications as best_use_cases,
+          prerequisites,
+          implementation_tips,
+          best_practices,
+          tags,
+          ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
+          'workflows' as source_type
+        FROM pyemu_workflows
+        WHERE search_vector @@ plainto_tsquery('english', $1)
+        ORDER BY relevance DESC
+        LIMIT $2
+      `;
+      
+      const pyemuResults = await sql.query(pyemuQuery, [query, limit]);
+      allResults.push(...pyemuResults);
+    }
+
+    // Sort by relevance and limit
+    const sortedResults = allResults
+      .sort((a, b) => b.relevance - a.relevance)
       .slice(0, limit);
 
-    const recommendations = generateRecommendations(query, allResults, method);
+    // Format output
+    if (sortedResults.length === 0) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `No tutorials found for query: "${query}"`
+        }]
+      };
+    }
 
-    const response: ExampleSearchResponse = {
-      results: allResults,
-      search_metadata: {
-        method_used: method,
-        total_results: allResults.length,
-        coverage: 'examples',
-        query_analyzed: query,
-        ...(Object.keys(detectedAcronyms).length > 0 && { acronyms_detected: detectedAcronyms })
-      },
-      recommendations
-    };
+    let output = `Found ${sortedResults.length} tutorial${sortedResults.length > 1 ? 's' : ''} for "${query}"\n\n`;
+
+    sortedResults.forEach((result, index) => {
+      output += `${index + 1}. **${result.title}** (${result.repo_name})\n`;
+      output += `   File: ${result.filepath}\n`;
+      
+      if (result.complexity) {
+        output += `   Complexity: ${result.complexity}\n`;
+      }
+      
+      if (result.model_type) {
+        output += `   Type: ${result.model_type}\n`;
+      }
+      
+      if (result.packages_used && result.packages_used.length > 0) {
+        const packages = result.packages_used.slice(0, 5).join(', ');
+        output += `   Packages: ${packages}\n`;
+      }
+      
+      // Display optional arrays based on user preferences
+      if (include_tags && result.tags && result.tags.length > 0) {
+        output += `   Tags: ${result.tags.slice(0, 5).join(', ')}\n`;
+      }
+      
+      if (result.description) {
+        const desc = result.description.substring(0, 200);
+        output += `   Description: ${desc}${result.description.length > 200 ? '...' : ''}\n`;
+      }
+      
+      // Rich arrays with user control
+      if (include_use_cases && result.best_use_cases) {
+        output += `   Use Cases:\n${formatArray(result.best_use_cases, compact_arrays, 3)}\n`;
+      }
+      
+      if (include_prerequisites && result.prerequisites) {
+        output += `   Prerequisites:\n${formatArray(result.prerequisites, compact_arrays, 3)}\n`;
+      }
+      
+      if (include_modifications && result.common_modifications && result.repo_name === 'flopy') {
+        output += `   Common Modifications:\n${formatArray(result.common_modifications, compact_arrays, 3)}\n`;
+      }
+      
+      if (include_tips && result.repo_name === 'pyemu') {
+        if (result.implementation_tips) {
+          output += `   Implementation Tips:\n${formatArray(result.implementation_tips, compact_arrays, 3)}\n`;
+        }
+        if (result.best_practices) {
+          output += `   Best Practices:\n${formatArray(result.best_practices, compact_arrays, 3)}\n`;
+        }
+      }
+      
+      if (include_purpose && result.workflow_purpose) {
+        const purpose = compact_arrays 
+          ? result.workflow_purpose.substring(0, 300) + (result.workflow_purpose.length > 300 ? '...' : '')
+          : result.workflow_purpose;
+        output += `   Purpose: ${purpose}\n`;
+      }
+      
+      output += `   Relevance: ${result.relevance.toFixed(3)}\n`;
+      output += '\n';
+    });
+
+    // Add debug info
+    output += `\nDebug Info:\n`;
+    output += `- Search term: "${query}"\n`;
+    output += `- Repositories searched: ${validRepos.join(', ')}\n`;
+    output += `- Results found: ${sortedResults.length}/${limit}\n`;
+    output += `- Display options: `;
+    const activeOptions = [];
+    if (include_use_cases) activeOptions.push('use_cases');
+    if (include_prerequisites) activeOptions.push('prerequisites');
+    if (include_modifications) activeOptions.push('modifications');
+    if (include_tips) activeOptions.push('tips');
+    if (include_purpose) activeOptions.push('purpose');
+    if (include_tags) activeOptions.push('tags');
+    if (compact_arrays) activeOptions.push('compact');
+    output += activeOptions.length > 0 ? activeOptions.join(', ') : 'none';
+    output += '\n';
 
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify(response, null, 2)
+        text: output
       }]
     };
 
   } catch (error) {
-    console.error('[SEARCH EXAMPLES] Error:', error);
+    console.error('[SEARCH EXAMPLES PHASE 1] Error:', error);
     return {
       content: [{
         type: "text" as const,

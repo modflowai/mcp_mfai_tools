@@ -5,16 +5,25 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
 ## Current Status
 
 ✅ **Phase 0 COMPLETE**: Minimal search-examples tool deployed and working  
-✅ **WORKING**: Clean implementation with basic text search across workflow tables  
-📊 **GOAL**: Incrementally add user-controlled features for rich metadata display and filtering
+✅ **Phase 1.1 COMPLETE**: Display control options implemented and deployed  
+✅ **WORKING**: User-controlled display of rich metadata arrays  
+📊 **GOAL**: Continue adding filtering and advanced features
 
-### What's Implemented (Phase 0)
+### What's Implemented (Phase 0 + Phase 1.1)
 - Basic text search using `search_vector` and `plainto_tsquery`
 - Repository filtering (flopy, pyemu, or both)
 - Returns: title, description, complexity, model_type/workflow_type, packages
 - Relevance ranking with `ts_rank_cd`
 - Clean error handling and debug output
 - Limit parameter (1-50 results)
+- **NEW**: User-controlled display options:
+  - `include_use_cases`: Show best_use_cases/common_applications
+  - `include_prerequisites`: Show prerequisites
+  - `include_modifications`: Show common_modifications (FloPy only)
+  - `include_tips`: Show implementation_tips/best_practices (PyEMU only)
+  - `include_purpose`: Show full workflow_purpose
+  - `include_tags`: Show tags
+  - `compact_arrays`: Show only first 2 items of arrays
 
 ## Database Schema Analysis
 
@@ -247,11 +256,12 @@ common_applications:
 - ✅ No results handling
 - ✅ Invalid repository error handling
 
-### Phase 1: Enhanced Display Options (SAFE - Zero Breaking Changes)
+### Phase 1: Enhanced Display Options ✅ COMPLETE
 
-#### Step 1.1: Rich Array Display Control
+#### Step 1.1: Rich Array Display Control ✅ DEPLOYED
 **What**: Let users control which rich arrays to display  
 **Risk**: Zero - additive display options only  
+**Status**: Implemented and deployed to production  
 **Implementation**:
 ```typescript
 // New optional parameters
@@ -550,7 +560,7 @@ mcp__mfaitools__search_examples({
 ## Next Steps
 
 1. ✅ **Phase 0**: ~~Create minimal tool~~ COMPLETE
-2. **Phase 1.1**: Implement display control options (IN PROGRESS)
+2. ✅ **Phase 1.1**: ~~Implement display control options~~ COMPLETE
 3. **Phase 1.2**: Add snippet highlighting control
 4. **Phase 2.1**: Add model/package filtering
 5. **Phase 2.2**: Add complexity filtering
