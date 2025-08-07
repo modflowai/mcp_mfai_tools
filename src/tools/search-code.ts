@@ -108,23 +108,35 @@ async function executeGeneralSearch(
 ): Promise<any[]> {
   // This is the existing search logic (current behavior)
   let results: any[] = [];
+  let debugInfo: string[] = [];
   
   // Search flopy_modules (existing logic)
   if (!repository || repository === 'flopy') {
     const flopQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+    debugInfo.push(`FloPy general query: ${flopQuery}`);
     console.log('[SEARCH CODE] FloPy query (general):', flopQuery);
     const flopResults = await sql.query(flopQuery, [searchTerm]);
+    debugInfo.push(`FloPy general results: ${flopResults?.length || 0}`);
     console.log('[SEARCH CODE] FloPy results count (general):', flopResults?.length || 0);
     results.push(...flopResults);
   }
   
-  // Search pyemu_modules (existing logic)  
+  // Search pyemu_modules (existing logic) - but note: general search doesn't use ILIKE for arrays
   if (!repository || repository === 'pyemu') {
     const pyemuQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions);
+    debugInfo.push(`PyEMU general query: ${pyemuQuery}`);
     console.log('[SEARCH CODE] PyEMU query (general):', pyemuQuery);
     const pyemuResults = await sql.query(pyemuQuery, [searchTerm]);
+    debugInfo.push(`PyEMU general results: ${pyemuResults?.length || 0}`);
     console.log('[SEARCH CODE] PyEMU results count (general):', pyemuResults?.length || 0);
     results.push(...pyemuResults);
+  }
+  
+  // Store debug info in results for output
+  if (results.length > 0) {
+    results[0]._debug_general = debugInfo;
+  } else {
+    results.push({ _debug_general: debugInfo, _debug_only: true });
   }
   
   return results;
@@ -186,7 +198,8 @@ async function executeErrorSearch(
   
   if (!repository || repository === 'pyemu') {
     const pyemuErrorQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'error');
-    const pyemuErrorResults = await sql.query(pyemuErrorQuery, [searchTerm]);
+    const flexiblePattern = `%${searchTerm.replace(/\s*&\s*/g, '%').replace(/\s+/g, '%')}%`;
+    const pyemuErrorResults = await sql.query(pyemuErrorQuery, [searchTerm, flexiblePattern]);
     results.push(...pyemuErrorResults);
   }
   
@@ -211,7 +224,8 @@ async function executeUsageSearch(
   
   if (!repository || repository === 'pyemu') {
     const pyemuUsageQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'usage');
-    const pyemuUsageResults = await sql.query(pyemuUsageQuery, [searchTerm]);
+    const flexiblePattern = `%${searchTerm.replace(/\s*&\s*/g, '%').replace(/\s+/g, '%')}%`;
+    const pyemuUsageResults = await sql.query(pyemuUsageQuery, [searchTerm, flexiblePattern]);
     results.push(...pyemuUsageResults);
   }
   
@@ -227,17 +241,33 @@ async function executeConceptSearch(
 ): Promise<any[]> {
   // Strategy: Search concept arrays first
   let results: any[] = [];
+  let debugInfo: string[] = [];
   
   if (!repository || repository === 'flopy') {
     const conceptQuery = buildFloepyQuery(searchTerm, Math.ceil(limit / 2), includeOptions, false, 'concept');
+    debugInfo.push(`FloPy concept query: ${conceptQuery}`);
     const conceptResults = await sql.query(conceptQuery, [searchTerm]);
+    debugInfo.push(`FloPy concept results: ${conceptResults?.length || 0}`);
     results.push(...conceptResults);
   }
   
   if (!repository || repository === 'pyemu') {
     const pyemuConceptQuery = buildPyemuQuery(searchTerm, Math.ceil(limit / 2), includeOptions, 'concept');
-    const pyemuConceptResults = await sql.query(pyemuConceptQuery, [searchTerm]);
+    debugInfo.push(`PyEMU concept query: ${pyemuConceptQuery}`);
+    
+    // Create flexible search pattern for arrays (e.g., "first order" -> "%first%order%")
+    const flexiblePattern = `%${searchTerm.replace(/\s*&\s*/g, '%').replace(/\s+/g, '%')}%`;
+    const pyemuConceptResults = await sql.query(pyemuConceptQuery, [searchTerm, flexiblePattern]);
+    debugInfo.push(`PyEMU concept results: ${pyemuConceptResults?.length || 0}`);
+    debugInfo.push(`Flexible pattern used: ${flexiblePattern}`);
     results.push(...pyemuConceptResults);
+  }
+  
+  // Store debug info in results for output
+  if (results.length > 0) {
+    results[0]._debug_concept = debugInfo;
+  } else {
+    results.push({ _debug_concept: debugInfo, _debug_only: true });
   }
   
   return results;
@@ -326,31 +356,43 @@ function buildPyemuQuery(
   let orderClause;
   
   if (searchFocus === 'error') {
-    // Focus on error/pitfall arrays
+    // Focus on error/pitfall arrays - use flexible ILIKE matching  
     whereClause = `WHERE (
-      to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
+      array_to_string(common_pitfalls, ' ') ILIKE $2
+      OR to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
     )`;
     orderClause = `ORDER BY 
-      CASE WHEN to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
+      CASE WHEN (
+        array_to_string(common_pitfalls, ' ') ILIKE $2
+        OR to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
+      ) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   } else if (searchFocus === 'usage') {
-    // Focus on use case arrays
+    // Focus on use case arrays - use flexible ILIKE matching
     whereClause = `WHERE (
-      to_tsvector('english', array_to_string(use_cases, ' ')) @@ to_tsquery('english', $1)
+      array_to_string(use_cases, ' ') ILIKE $2
+      OR to_tsvector('english', array_to_string(use_cases, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
     )`;
     orderClause = `ORDER BY 
-      CASE WHEN to_tsvector('english', array_to_string(use_cases, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
+      CASE WHEN (
+        array_to_string(use_cases, ' ') ILIKE $2
+        OR to_tsvector('english', array_to_string(use_cases, ' ')) @@ to_tsquery('english', $1)
+      ) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   } else if (searchFocus === 'concept') {
-    // Focus on statistical concept arrays
+    // Focus on statistical concept arrays - use flexible ILIKE matching
     whereClause = `WHERE (
-      to_tsvector('english', array_to_string(statistical_concepts, ' ')) @@ to_tsquery('english', $1)
+      array_to_string(statistical_concepts, ' ') ILIKE $2
+      OR to_tsvector('english', array_to_string(statistical_concepts, ' ')) @@ to_tsquery('english', $1)
       OR search_vector @@ to_tsquery('english', $1)
     )`;
     orderClause = `ORDER BY 
-      CASE WHEN to_tsvector('english', array_to_string(statistical_concepts, ' ')) @@ to_tsquery('english', $1) THEN 2.0 ELSE 1.0 END * 
+      CASE WHEN (
+        array_to_string(statistical_concepts, ' ') ILIKE $2
+        OR to_tsvector('english', array_to_string(statistical_concepts, ' ')) @@ to_tsquery('english', $1)
+      ) THEN 2.0 ELSE 1.0 END * 
       ts_rank_cd(search_vector, to_tsquery('english', $1)) DESC`;
   } else {
     // General search (existing behavior)
@@ -545,16 +587,17 @@ export async function searchCode(
       includeOptions
     );
 
-    // Sort by relevance
-    results.sort((a, b) => b.relevance_score - a.relevance_score);
-    results = results.slice(0, limit);
+    // Sort by relevance and filter out debug-only entries
+    const displayResults = results.filter(r => !r._debug_only);
+    displayResults.sort((a, b) => b.relevance_score - a.relevance_score);
+    const finalResults = displayResults.slice(0, limit);
     
-    console.log('[SEARCH CODE] Final results count:', results.length);
+    console.log('[SEARCH CODE] Final results count:', finalResults.length);
 
     // Format output with enhanced metadata formatting
-    let output = `Found ${results.length} code modules for "${query}"\n\n`;
+    let output = `Found ${finalResults.length} code modules for "${query}"\n\n`;
     
-    results.forEach((result, index) => {
+    finalResults.forEach((result, index) => {
       const resultPrefix = compact_format ? `${index + 1}. ` : `${index + 1}. `;
       output += `${resultPrefix}**${result.filepath}** (${result.repo_name})\n`;
       
@@ -600,7 +643,7 @@ export async function searchCode(
       output += `   Relevance: ${result.relevance_score.toFixed(3)}\n\n`;
     });
     
-    // Add enhanced debug information
+    // Add enhanced debug information with SQL queries
     output += `\nDebug Info:\n`;
     output += `- Search term: "${searchTerm}"\n`;
     output += `- Repository: ${repository || 'all'}\n`;
@@ -614,7 +657,24 @@ export async function searchCode(
       include_github && 'github'
     ].filter(Boolean).join(', ') || 'none'}\n`;
     output += `- Formatting: ${compact_format ? 'compact' : 'full'} (max ${maxItems} items, ${maxSnippetLength} chars)\n`;
-    output += `- Results found: ${results.length}/${limit}\n`;
+    output += `- Results found: ${finalResults.length}/${limit}\n`;
+    
+    // Add strategy-specific debug information
+    if (results.length > 0) {
+      const debugResult = results.find(r => r._debug_concept || r._debug_general);
+      if (debugResult?._debug_concept) {
+        output += `\nCONCEPT STRATEGY DEBUG:\n`;
+        debugResult._debug_concept.forEach((info: string, i: number) => {
+          output += `${i + 1}. ${info}\n`;
+        });
+      }
+      if (debugResult?._debug_general) {
+        output += `\nGENERAL STRATEGY DEBUG:\n`;
+        debugResult._debug_general.forEach((info: string, i: number) => {
+          output += `${i + 1}. ${info}\n`;
+        });
+      }
+    }
 
     return {
       content: [{
