@@ -785,15 +785,15 @@ export async function searchCode(
       }
     }
     
-    // If we expanded any acronyms, use the expanded query
+    // If we expanded any acronyms, use OR for flexibility
     if (hasAcronymExpansion) {
-      searchTerm = expandedTerms.join(' & ');
+      searchTerm = expandedTerms.join(' | ');  // Changed from & to |
     } else {
       // Step 2: Handle wildcard conversion (* to :*)
       searchTerm = searchTerm.replace(/\*/g, ':*');
       
       // Step 3: Convert to tsquery format - remove special chars except wildcards
-      searchTerm = searchTerm.replace(/[^\w\s:*]/g, '').split(/\s+/).join(' & ');
+      searchTerm = searchTerm.replace(/[^\w\s:*]/g, '').split(/\s+/).join(' | ');  // Changed from & to |
     }
     
     console.log('[SEARCH CODE] Processed search term:', searchTerm);

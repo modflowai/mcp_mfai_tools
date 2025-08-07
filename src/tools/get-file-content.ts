@@ -201,6 +201,14 @@ export const getFileContentSchema = {
         type: 'string',
         description: 'Exact file path within the repository (e.g., "mf6io/well_wel_package.md")',
       },
+      page: {
+        type: 'number',
+        description: 'Page number for large files (1-based). Files over 70KB are automatically paginated.',
+      },
+      force_full: {
+        type: 'boolean',
+        description: 'Force full content retrieval even for large files (use with caution, may exceed token limits)',
+      },
     },
     required: ['repository', 'filepath'],
   }
@@ -209,7 +217,7 @@ export const getFileContentSchema = {
 // Tool implementation
 export async function getFileContentTool(args: any, sql: NeonQueryFunction<false, false>) {
   try {
-    const { repository, filepath } = args;
+    const { repository, filepath, page, force_full = false } = args;
 
     // Validate inputs
     if (!repository || typeof repository !== 'string' || repository.trim().length === 0) {
@@ -277,6 +285,34 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
 
     const file = result[0];
     
+    // Handle pagination for large files
+    const SAFE_CONTENT_LIMIT = 70000; // Safe limit to avoid token issues
+    const fileSize = file.file_size || file.content?.length || 0;
+    const needsPagination = fileSize > SAFE_CONTENT_LIMIT && !force_full;
+    
+    let currentPage = 1;
+    let totalPages = 1;
+    
+    if (needsPagination) {
+      totalPages = Math.ceil(fileSize / SAFE_CONTENT_LIMIT);
+      currentPage = page || 1;
+      
+      // Validate page number
+      if (currentPage < 1 || currentPage > totalPages) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Invalid page number. File has ${totalPages} pages. Please specify a page between 1 and ${totalPages}.`
+          }]
+        };
+      }
+      
+      // Extract the requested page
+      const start = (currentPage - 1) * SAFE_CONTENT_LIMIT;
+      const end = Math.min(start + SAFE_CONTENT_LIMIT, fileSize);
+      file.content = file.content?.substring(start, end);
+    }
+    
     // Parse analysis
     let analysis: FileAnalysis = {};
     if (file.analysis) {
@@ -301,12 +337,28 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     const extension = filename.includes('.') ? filename.split('.').pop() || '' : '';
 
     // Format output for MCP
-    let outputText = `# File Content: ${filepath}\n\n`;
+    let outputText = `# File Content: ${filepath}`;
+    if (needsPagination) {
+      outputText += ` (Part ${currentPage}/${totalPages})`;
+    }
+    outputText += `\n\n`;
+    
+    // Add pagination notice if applicable
+    if (needsPagination) {
+      outputText += `📄 **Large file notice:** This file is ${fileSize.toLocaleString()} characters. Showing part ${currentPage} of ${totalPages}.\n`;
+      if (currentPage < totalPages) {
+        outputText += `• **Next part:** \`get_file_content(repository="${repository}", filepath="${filepath}", page=${currentPage + 1})\`\n`;
+      }
+      if (currentPage > 1) {
+        outputText += `• **Previous part:** \`get_file_content(repository="${repository}", filepath="${filepath}", page=${currentPage - 1})\`\n`;
+      }
+      outputText += `• **Force full file:** \`get_file_content(repository="${repository}", filepath="${filepath}", force_full=true)\` ⚠️ May exceed token limits\n\n`;
+    }
     
     outputText += `**Repository:** ${repository}\n`;
     outputText += `**File:** ${filename}\n`;
     outputText += `**Type:** ${file.file_type || extension || 'unknown'}\n`;
-    outputText += `**Size:** ${file.file_size || 0} characters\n`;
+    outputText += `**Size:** ${fileSize.toLocaleString()} characters\n`;
     if (file.created_at) {
       outputText += `**Created:** ${new Date(file.created_at).toISOString()}\n`;
     }
@@ -363,11 +415,10 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
 
     // Add file content
     if (file.content) {
-      // For very large files, we might want to warn
-      if (file.content.length > 50000) {
-        outputText += `⚠️ **Large File Warning:** This file is ${file.content.length} characters long. Content shown below:\n\n`;
+      // Add reminder for paginated content
+      if (needsPagination && currentPage === 1 && totalPages > 1) {
+        outputText += `⚠️ **Reminder:** This is only part 1 of ${totalPages}. To understand the full context, especially for documentation chapters, consider retrieving the remaining parts using the commands shown above.\n\n`;
       }
-      
       // Determine if we should format as code block
       const codeExtensions = ['py', 'ts', 'js', 'json', 'yaml', 'yml', 'toml', 'md', 'txt', 'f90', 'c', 'cpp', 'h'];
       const isCodeFile = codeExtensions.includes(extension.toLowerCase());

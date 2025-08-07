@@ -125,6 +125,7 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
       const upperWord = word.toUpperCase();
       if ((acronymMappings as any)[upperWord]) {
         const mapping = (acronymMappings as any)[upperWord];
+        console.log(`[SEARCH DOCS] Expanding acronym: ${word} -> ${mapping.full}`);
         // For tsquery, we need to format it properly
         const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
         expandedTerms.push(`(${word} | ${fullTerms})`);
@@ -134,19 +135,20 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
       }
     }
     
-    // If we expanded any acronyms, use the expanded query
+    // If we expanded any acronyms, use OR instead of AND for flexibility
     if (hasAcronymExpansion) {
-      searchTerm = expandedTerms.join(' & ');
+      searchTerm = expandedTerms.join(' | ');  // Changed from & to |
+      console.log('[SEARCH DOCS] Expanded query with acronyms:', searchTerm);
     } else {
       // Handle basic wildcard conversion (* to :*)
       searchTerm = searchTerm.replace(/\*/g, ':*');
       
-      // If no boolean operators, treat as phrase search
+      // If no boolean operators, use OR for more flexible search
       if (!searchTerm.includes('&') && !searchTerm.includes('|') && !searchTerm.includes('!')) {
-        // Split into words and join with & for AND search
+        // Split into words and join with | for OR search - more flexible!
         const words = searchTerm.split(/\s+/).filter(word => word.length > 0);
         if (words.length > 1) {
-          searchTerm = words.join(' & ');
+          searchTerm = words.join(' | ');
         }
       }
     }

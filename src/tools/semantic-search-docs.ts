@@ -345,12 +345,12 @@ function prepareTextSearchTerm(query: string): string {
   // Handle basic wildcard conversion (* to :*)
   searchTerm = searchTerm.replace(/\*/g, ':*');
   
-  // If no boolean operators, treat as phrase search
+  // If no boolean operators, use OR for flexible search
   if (!searchTerm.includes('&') && !searchTerm.includes('|') && !searchTerm.includes('!')) {
-    // Split into words and join with & for AND search
+    // Split into words and join with | for OR search - more flexible!
     const words = searchTerm.split(/\s+/).filter(word => word.length > 0);
     if (words.length > 1) {
-      searchTerm = words.join(' & ');
+      searchTerm = words.join(' | ');  // Changed from & to |
     }
   }
   
