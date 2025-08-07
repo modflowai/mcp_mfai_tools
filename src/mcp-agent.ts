@@ -20,6 +20,7 @@ import { semanticSearchSchema, semanticSearchTool } from "./tools/semantic-searc
 import { getFileContentSchema, getFileContentTool } from "./tools/get-file-content.js";
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
 import { searchExamplesSchema, searchExamples } from "./tools/search-examples.js";
+import { semanticSearchExamplesSchema, semanticSearchExamples } from "./tools/semantic-search-examples.js";
 
 // Use the imported text search schema
 const textSearchSchema = importedTextSearchSchema;
@@ -187,7 +188,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       };
     });
     
-    // Register available tools - now with search-code tool
+    // Register available tools
     const toolsList = [
       {
         name: textSearchSchema.name,
@@ -213,6 +214,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         name: searchExamplesSchema.name,
         description: searchExamplesSchema.description,
         inputSchema: searchExamplesSchema.inputSchema,
+      },
+      {
+        name: semanticSearchExamplesSchema.name,
+        description: semanticSearchExamplesSchema.description,
+        inputSchema: semanticSearchExamplesSchema.inputSchema,
       }
     ];
     
@@ -245,6 +251,9 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         case 'search_examples':
           return await this.handleSearchExamples(args);
         
+        case 'semantic_search_examples':
+          return await this.handleSemanticSearchExamples(args);
+        
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -253,7 +262,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       }
     });
     
-    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchExamplesSchema.name);
+    console.log("[MCP] Registered tools:", textSearchSchema.name, semanticSearchSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchExamplesSchema.name, semanticSearchExamplesSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -307,5 +316,9 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
 
   private async handleSearchExamples(args: any) {
     return await searchExamples(args, this.sql);
+  }
+
+  private async handleSemanticSearchExamples(args: any) {
+    return await semanticSearchExamples(args, this.sql, this.env.OPENAI_API_KEY);
   }
 }
