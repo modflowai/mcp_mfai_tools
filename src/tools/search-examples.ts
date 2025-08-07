@@ -124,19 +124,36 @@ const formatArray = (items: any[], compact: boolean, maxItems: number = 5): stri
 
 export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
   try {
+    // Parse array parameters that might come as JSON strings from MCP
+    const parseArrayParam = (param: any): any[] | undefined => {
+      if (!param) return undefined;
+      if (Array.isArray(param)) return param;
+      if (typeof param === 'string') {
+        try {
+          const parsed = JSON.parse(param);
+          return Array.isArray(parsed) ? parsed : undefined;
+        } catch {
+          return undefined;
+        }
+      }
+      return undefined;
+    };
+    
     const { 
       query, 
       repository, 
       limit = 10,
       // Filtering parameters
       model_type,
-      packages,
       has_packages = 'any',
       complexity,
       workflow_type,
-      pest_concepts,
-      uncertainty_methods
     } = args;
+    
+    // Parse array parameters
+    const packages = parseArrayParam(args.packages);
+    const pest_concepts = parseArrayParam(args.pest_concepts);
+    const uncertainty_methods = parseArrayParam(args.uncertainty_methods);
     
     // Parse display options with MCP boolean compatibility
     const include_use_cases = parseBool(args.include_use_cases, false);
@@ -171,7 +188,8 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
 
     console.log(`[SEARCH EXAMPLES PHASE 2] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
-    console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}, packages=${Array.isArray(packages) ? packages.join(',') : packages}`);
+    console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}`);
+    console.log(`[SEARCH EXAMPLES PHASE 2] Package filters: packages=${Array.isArray(packages) ? `[${packages.join(',')}]` : packages}, has_packages=${has_packages}`);
 
     const allResults = [];
 
@@ -320,9 +338,15 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       if (model_type) activeFilters.push(`model_type=${model_type}`);
       if (complexity) activeFilters.push(`complexity=${complexity}`);
       if (workflow_type) activeFilters.push(`workflow_type=${workflow_type}`);
-      if (packages && Array.isArray(packages) && packages.length) activeFilters.push(`packages=${packages.join(',')}`);
-      if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) activeFilters.push(`pest_concepts=${pest_concepts.join(',')}`);
-      if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) activeFilters.push(`uncertainty_methods=${uncertainty_methods.join(',')}`);
+      if (packages && Array.isArray(packages) && packages.length) {
+        activeFilters.push(`packages=[${packages.join(',')}]${has_packages === 'all' ? ' (ALL)' : ' (ANY)'}`);
+      }
+      if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) {
+        activeFilters.push(`pest_concepts=[${pest_concepts.join(',')}]`);
+      }
+      if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) {
+        activeFilters.push(`uncertainty_methods=[${uncertainty_methods.join(',')}]`);
+      }
       
       if (activeFilters.length > 0) {
         noResultsMsg += `\nActive filters: ${activeFilters.join(', ')}`;
@@ -416,9 +440,15 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     if (model_type) activeFilters.push(`model_type=${model_type}`);
     if (complexity) activeFilters.push(`complexity=${complexity}`);
     if (workflow_type) activeFilters.push(`workflow_type=${workflow_type}`);
-    if (packages && Array.isArray(packages) && packages.length) activeFilters.push(`packages=${packages.join(',')}`);
-    if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) activeFilters.push(`pest_concepts=${pest_concepts.join(',')}`);
-    if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) activeFilters.push(`uncertainty_methods=${uncertainty_methods.join(',')}`);
+    if (packages && Array.isArray(packages) && packages.length) {
+      activeFilters.push(`packages=[${packages.join(',')}]${has_packages === 'all' ? ' (ALL)' : ' (ANY)'}`);
+    }
+    if (pest_concepts && Array.isArray(pest_concepts) && pest_concepts.length) {
+      activeFilters.push(`pest_concepts=[${pest_concepts.join(',')}]`);
+    }
+    if (uncertainty_methods && Array.isArray(uncertainty_methods) && uncertainty_methods.length) {
+      activeFilters.push(`uncertainty_methods=[${uncertainty_methods.join(',')}]`);
+    }
     
     if (activeFilters.length > 0) {
       output += `- Active filters: ${activeFilters.join(', ')}\n`;
