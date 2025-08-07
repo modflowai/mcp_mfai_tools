@@ -415,7 +415,18 @@ function buildPyemuQuery(
       ${include_errors ? 'common_pitfalls,' : 'NULL as common_pitfalls,'}
       ${include_pest ? 'pest_integration,' : 'NULL as pest_integration,'}
       ${include_source ? 'LEFT(source_code, 500) as source_snippet,' : 'NULL as source_snippet,'}
-      ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+      ${searchFocus === 'error' ? `
+      CASE WHEN (
+        array_to_string(common_pitfalls, ' ') ILIKE $2
+        OR to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
+      ) THEN 2.0 ELSE 1.0 END as boost_factor,
+      ts_rank_cd(search_vector, to_tsquery('english', $1)) as base_score,
+      CASE WHEN (
+        array_to_string(common_pitfalls, ' ') ILIKE $2
+        OR to_tsvector('english', array_to_string(common_pitfalls, ' ')) @@ to_tsquery('english', $1)
+      ) THEN 2.0 ELSE 1.0 END * 
+      ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,` : `
+      ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,`}
       'modules' as search_source
     FROM pyemu_modules
     ${whereClause}
@@ -640,6 +651,10 @@ export async function searchCode(
         output += formatSourceCode(result.source_snippet, compact_format ? 300 : 500);
       }
       
+      // Display boost debug info if available
+      if (result.boost_factor && result.base_score) {
+        output += `   Boost Debug: ${result.base_score.toFixed(3)} × ${result.boost_factor} = ${result.relevance_score.toFixed(3)}\n`;
+      }
       output += `   Relevance: ${result.relevance_score.toFixed(3)}\n\n`;
     });
     
