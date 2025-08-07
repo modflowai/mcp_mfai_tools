@@ -8,11 +8,12 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
 ✅ **Phase 1.1 COMPLETE**: Display control options implemented and deployed  
 ✅ **Phase 1.2 COMPLETE**: Enhanced snippet display with ts_headline highlighting  
 ✅ **Phase 2.1 COMPLETE**: Filtering capabilities added, tested, and deployed  
-✅ **WORKING**: Full production deployment with all filters, display options, and snippets  
-📊 **TESTED**: 15+ comprehensive test cases all passing  
-🎯 **NEXT**: Phase 3.1 (Rich array search) or Phase 3.2 (Hybrid search)
+✅ **Phase 3.1 COMPLETE**: Rich array search within array fields implemented and deployed  
+✅ **WORKING**: Full production deployment with all features (filters, display options, snippets, array search)  
+📊 **TESTED**: 20+ comprehensive test cases all passing  
+🎯 **NEXT**: Phase 3.2 (Hybrid search) or Phase 4 (Smart features)
 
-### What's Implemented (Phase 0 + Phase 1.1 + Phase 1.2 + Phase 2.1)
+### What's Implemented (Phase 0 + Phase 1.1 + Phase 1.2 + Phase 2.1 + Phase 3.1)
 - Basic text search using `search_vector` and `plainto_tsquery`
 - Repository filtering (flopy, pyemu, or both)
 - Returns: title, description, complexity, model_type/workflow_type, packages
@@ -39,6 +40,11 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
   - `workflow_type`: Filter by PyEMU workflow type
   - `pest_concepts`: Filter by PEST concepts (PyEMU only)
   - `uncertainty_methods`: Filter by uncertainty methods (PyEMU only)
+- **Phase 3.1**: Rich array search capabilities:
+  - `search_arrays`: Enable searching within array fields
+  - `array_fields`: Specify which arrays to search (use_cases, prerequisites, modifications, tips, practices)
+  - `search_mode`: Prioritization mode (title_first, arrays_first, balanced)
+  - Dynamic SQL with unnest to search within best_use_cases, prerequisites, common_modifications, etc.
 
 ## Database Schema Analysis
 
@@ -610,12 +616,17 @@ mcp__mfaitools__search_examples({
   - [x] Comprehensive testing (10+ test cases)
   - [x] Deployed and working in production
 
-### ⏳ Pending Phases
+- [x] **Phase 3.1**: Rich array search (COMPLETE)
+  - [x] `search_arrays` parameter to enable array field search
+  - [x] `array_fields` specification (use_cases, prerequisites, modifications, tips, practices)
+  - [x] `search_mode` control (title_first, arrays_first, balanced)
+  - [x] Dynamic SQL with unnest for array content search
+  - [x] Field mapping for FloPy vs PyEMU array differences
+  - [x] Repository-specific array field validation
+  - [x] Comprehensive testing (7+ array search test cases)
+  - [x] Deployed and working in production
 
-- [ ] **Phase 3.1**: Rich array search
-  - [ ] Search within array fields
-  - [ ] Dynamic SQL generation for array search
-  - [ ] Performance optimization
+### ⏳ Pending Phases
 
 - [ ] **Phase 3.2**: Hybrid search
   - [ ] Combined text and vector search

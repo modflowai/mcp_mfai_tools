@@ -1,7 +1,10 @@
 /**
- * Search Examples Tool - Phase 2 + Phase 1.2: Filtering + Enhanced Snippets
- * Phase 2.1: Advanced filtering (model type, packages, complexity, workflow filtering)
+ * Search Examples Tool - Phase 3.1: Rich Array Search + Previous Features  
+ * Phase 0: Basic search functionality
+ * Phase 1.1: Display control options
  * Phase 1.2: Enhanced snippet display with ts_headline highlighting
+ * Phase 2.1: Advanced filtering (model type, packages, complexity, workflow filtering)
+ * Phase 3.1: Rich array search within array fields (best_use_cases, prerequisites, etc.)
  * Tables: flopy_workflows, pyemu_workflows
  */
 
@@ -13,6 +16,7 @@ export const searchExamplesSchema = {
     Search for tutorials, workflows, and working examples in FloPy and PyEMU.
     Supports filtering by model type, packages, complexity, and workflow type.
     Enhanced snippet highlighting with ts_headline for better search result display.
+    Rich array search capability to find content within array fields (use cases, prerequisites, etc.).
     Searches ONLY workflow tables (flopy_workflows, pyemu_workflows).
   `,
   inputSchema: {
@@ -74,6 +78,22 @@ export const searchExamplesSchema = {
         type: 'string',
         enum: ['description', 'purpose', 'both'],
         description: 'Which field to generate snippets from (default: description)',
+      },
+      
+      // Phase 3.1: Rich array search
+      search_arrays: {
+        type: 'boolean',
+        description: 'Include array fields in search (best_use_cases, prerequisites, etc.)',
+      },
+      array_fields: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Specific array fields to search: use_cases, prerequisites, modifications, tips, practices',
+      },
+      search_mode: {
+        type: 'string',
+        enum: ['title_first', 'arrays_first', 'balanced'],
+        description: 'Search prioritization: title_first (default), arrays_first, or balanced',
       },
       
       // Phase 2: Filtering options
@@ -139,6 +159,49 @@ const formatArray = (items: any[], compact: boolean, maxItems: number = 5): stri
   return result;
 };
 
+// Helper to build array search conditions
+const buildArraySearchConditions = (query: string, arrayFields: string[] | undefined, repositoryType: 'flopy' | 'pyemu'): string => {
+  if (!arrayFields || arrayFields.length === 0) {
+    // Default array fields for each repository
+    if (repositoryType === 'flopy') {
+      arrayFields = ['use_cases', 'prerequisites', 'modifications'];
+    } else {
+      arrayFields = ['use_cases', 'prerequisites', 'tips', 'practices'];
+    }
+  }
+  
+  const conditions = [];
+  
+  // Map user-friendly field names to actual database columns
+  const fieldMapping: Record<string, string> = {
+    'use_cases': repositoryType === 'flopy' ? 'best_use_cases' : 'common_applications',
+    'prerequisites': 'prerequisites',
+    'modifications': 'common_modifications', // FloPy only
+    'tips': 'implementation_tips', // PyEMU only  
+    'practices': 'best_practices' // PyEMU only
+  };
+  
+  for (const field of arrayFields) {
+    const dbColumn = fieldMapping[field];
+    if (dbColumn) {
+      // Only include valid fields for each repository
+      if (repositoryType === 'flopy' && ['implementation_tips', 'best_practices'].includes(dbColumn)) {
+        continue; // Skip PyEMU-only fields
+      }
+      if (repositoryType === 'pyemu' && dbColumn === 'common_modifications') {
+        continue; // Skip FloPy-only fields
+      }
+      
+      conditions.push(`EXISTS (
+        SELECT 1 FROM unnest(${dbColumn}) AS array_item 
+        WHERE array_item ILIKE '%' || $1 || '%'
+      )`);
+    }
+  }
+  
+  return conditions.join(' OR ');
+};
+
 export async function searchExamples(args: any, sql: NeonQueryFunction<false, false>) {
   try {
     // Parse array parameters that might come as JSON strings from MCP
@@ -167,12 +230,15 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       workflow_type,
       // Snippet parameters
       snippet_source = 'description',
+      // Array search parameters
+      search_mode = 'title_first',
     } = args;
     
     // Parse array parameters
     const packages = parseArrayParam(args.packages);
     const pest_concepts = parseArrayParam(args.pest_concepts);
     const uncertainty_methods = parseArrayParam(args.uncertainty_methods);
+    const array_fields = parseArrayParam(args.array_fields);
     
     // Parse display options with MCP boolean compatibility
     const include_use_cases = parseBool(args.include_use_cases, false);
@@ -183,6 +249,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     const include_tags = parseBool(args.include_tags, false);
     const compact_arrays = parseBool(args.compact_arrays, false);
     const include_snippet = parseBool(args.include_snippet, false);
+    const search_arrays = parseBool(args.search_arrays, false);
     
     // Validate and parse snippet_length
     let snippet_length = args.snippet_length || 200;
@@ -214,6 +281,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     console.log(`[SEARCH EXAMPLES PHASE 2] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Snippet options: include=${include_snippet}, length=${snippet_length}, source=${snippet_source}`);
+    console.log(`[SEARCH EXAMPLES PHASE 2] Array search: enabled=${search_arrays}, mode=${search_mode}, fields=${Array.isArray(array_fields) ? `[${array_fields.join(',')}]` : 'default'}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Package filters: packages=${Array.isArray(packages) ? `[${packages.join(',')}]` : packages}, has_packages=${has_packages}`);
 
@@ -222,9 +290,28 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     // Search FloPy workflows with filtering
     if (validRepos.includes('flopy')) {
       // Build WHERE clause with filters
-      const whereConditions = ['search_vector @@ plainto_tsquery(\'english\', $1)'];
-      const queryParams = [query];
+      let whereConditions = [];
+      let queryParams = [query];
       let paramIndex = 2;
+      
+      // Build main search condition based on search_mode
+      if (search_arrays) {
+        const arraySearchCondition = buildArraySearchConditions(query, array_fields, 'flopy');
+        
+        if (search_mode === 'title_first') {
+          // Standard search first, then arrays
+          whereConditions.push(`(search_vector @@ plainto_tsquery('english', $1)${arraySearchCondition ? ` OR (${arraySearchCondition})` : ''})`);
+        } else if (search_mode === 'arrays_first') {
+          // Arrays first, then standard search
+          whereConditions.push(`(${arraySearchCondition ? `(${arraySearchCondition}) OR ` : ''}search_vector @@ plainto_tsquery('english', $1))`);
+        } else { // balanced
+          // Equal weight to both
+          whereConditions.push(`(search_vector @@ plainto_tsquery('english', $1)${arraySearchCondition ? ` OR (${arraySearchCondition})` : ''})`);
+        }
+      } else {
+        // Standard search only
+        whereConditions.push('search_vector @@ plainto_tsquery(\'english\', $1)');
+      }
       
       if (model_type) {
         whereConditions.push(`model_type = $${paramIndex}`);
@@ -295,9 +382,28 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     // Search PyEMU workflows with filtering
     if (validRepos.includes('pyemu')) {
       // Build WHERE clause with filters
-      const whereConditions = ['search_vector @@ plainto_tsquery(\'english\', $1)'];
-      const queryParams = [query];
+      let whereConditions = [];
+      let queryParams = [query];
       let paramIndex = 2;
+      
+      // Build main search condition based on search_mode
+      if (search_arrays) {
+        const arraySearchCondition = buildArraySearchConditions(query, array_fields, 'pyemu');
+        
+        if (search_mode === 'title_first') {
+          // Standard search first, then arrays
+          whereConditions.push(`(search_vector @@ plainto_tsquery('english', $1)${arraySearchCondition ? ` OR (${arraySearchCondition})` : ''})`);
+        } else if (search_mode === 'arrays_first') {
+          // Arrays first, then standard search
+          whereConditions.push(`(${arraySearchCondition ? `(${arraySearchCondition}) OR ` : ''}search_vector @@ plainto_tsquery('english', $1))`);
+        } else { // balanced
+          // Equal weight to both
+          whereConditions.push(`(search_vector @@ plainto_tsquery('english', $1)${arraySearchCondition ? ` OR (${arraySearchCondition})` : ''})`);
+        }
+      } else {
+        // Standard search only
+        whereConditions.push('search_vector @@ plainto_tsquery(\'english\', $1)');
+      }
       
       if (workflow_type) {
         whereConditions.push(`workflow_type = $${paramIndex}`);
@@ -525,6 +631,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     if (include_tags) activeOptions.push('tags');
     if (compact_arrays) activeOptions.push('compact');
     if (include_snippet) activeOptions.push(`snippets(${snippet_source},${snippet_length}chars)`);
+    if (search_arrays) activeOptions.push(`array_search(${search_mode},${Array.isArray(array_fields) ? array_fields.join('|') : 'default'})`);
     output += activeOptions.length > 0 ? activeOptions.join(', ') : 'none';
     output += '\n';
 
