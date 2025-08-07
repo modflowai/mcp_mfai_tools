@@ -1,6 +1,7 @@
 /**
- * Search Examples Tool - Phase 2: Filtering Capabilities
- * Adds model type, package, complexity, and workflow filtering
+ * Search Examples Tool - Phase 2 + Phase 1.2: Filtering + Enhanced Snippets
+ * Phase 2.1: Advanced filtering (model type, packages, complexity, workflow filtering)
+ * Phase 1.2: Enhanced snippet display with ts_headline highlighting
  * Tables: flopy_workflows, pyemu_workflows
  */
 
@@ -11,6 +12,7 @@ export const searchExamplesSchema = {
   description: `
     Search for tutorials, workflows, and working examples in FloPy and PyEMU.
     Supports filtering by model type, packages, complexity, and workflow type.
+    Enhanced snippet highlighting with ts_headline for better search result display.
     Searches ONLY workflow tables (flopy_workflows, pyemu_workflows).
   `,
   inputSchema: {
@@ -57,6 +59,21 @@ export const searchExamplesSchema = {
       compact_arrays: {
         type: 'boolean',
         description: 'Show only first 2 items of arrays (default: false)',
+      },
+      
+      // Phase 1.2: Enhanced snippet display
+      include_snippet: {
+        type: 'boolean',
+        description: 'Show highlighted search snippets using ts_headline (default: false)',
+      },
+      snippet_length: {
+        type: 'number',
+        description: 'Maximum snippet length in characters (50-500, default: 200)',
+      },
+      snippet_source: {
+        type: 'string',
+        enum: ['description', 'purpose', 'both'],
+        description: 'Which field to generate snippets from (default: description)',
       },
       
       // Phase 2: Filtering options
@@ -148,6 +165,8 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
       has_packages = 'any',
       complexity,
       workflow_type,
+      // Snippet parameters
+      snippet_source = 'description',
     } = args;
     
     // Parse array parameters
@@ -163,6 +182,12 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     const include_purpose = parseBool(args.include_purpose, false);
     const include_tags = parseBool(args.include_tags, false);
     const compact_arrays = parseBool(args.compact_arrays, false);
+    const include_snippet = parseBool(args.include_snippet, false);
+    
+    // Validate and parse snippet_length
+    let snippet_length = args.snippet_length || 200;
+    if (snippet_length < 50) snippet_length = 50;
+    if (snippet_length > 500) snippet_length = 500;
 
     // Input validation
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -188,6 +213,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
 
     console.log(`[SEARCH EXAMPLES PHASE 2] Query: "${query}", Repository: ${repository || 'all'}, Limit: ${limit}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Display options: use_cases=${include_use_cases}, prereqs=${include_prerequisites}, mods=${include_modifications}, tips=${include_tips}, purpose=${include_purpose}, tags=${include_tags}, compact=${compact_arrays}`);
+    console.log(`[SEARCH EXAMPLES PHASE 2] Snippet options: include=${include_snippet}, length=${snippet_length}, source=${snippet_source}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Filters: model_type=${model_type}, complexity=${complexity}, workflow_type=${workflow_type}`);
     console.log(`[SEARCH EXAMPLES PHASE 2] Package filters: packages=${Array.isArray(packages) ? `[${packages.join(',')}]` : packages}, has_packages=${has_packages}`);
 
@@ -225,6 +251,18 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
         paramIndex++;
       }
       
+      // Build snippet fields based on user preference
+      const snippetFields = include_snippet ? `
+          ${snippet_source === 'description' || snippet_source === 'both' ? 
+            `, ts_headline('english', description, plainto_tsquery('english', $1), 
+              'MaxWords=${Math.floor(snippet_length/5)}, MinWords=${Math.floor(snippet_length/10)}, 
+               StartSel=<mark>, StopSel=</mark>') as description_snippet` : ''}
+          ${snippet_source === 'purpose' || snippet_source === 'both' ? 
+            `, ts_headline('english', workflow_purpose, plainto_tsquery('english', $1), 
+              'MaxWords=${Math.floor(snippet_length/5)}, MinWords=${Math.floor(snippet_length/10)}, 
+               StartSel=<mark>, StopSel=</mark>') as purpose_snippet` : ''}
+      ` : '';
+      
       const flopyQuery = `
         SELECT 
           tutorial_file as filepath,
@@ -241,6 +279,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
           tags,
           ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
           'workflows' as source_type
+          ${snippetFields}
         FROM flopy_workflows
         WHERE ${whereConditions.join(' AND ')}
         ORDER BY relevance DESC
@@ -294,6 +333,18 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
         paramIndex++;
       }
       
+      // Build snippet fields for PyEMU (reuse same snippet configuration)
+      const pyemuSnippetFields = include_snippet ? `
+          ${snippet_source === 'description' || snippet_source === 'both' ? 
+            `, ts_headline('english', description, plainto_tsquery('english', $1), 
+              'MaxWords=${Math.floor(snippet_length/5)}, MinWords=${Math.floor(snippet_length/10)}, 
+               StartSel=<mark>, StopSel=</mark>') as description_snippet` : ''}
+          ${snippet_source === 'purpose' || snippet_source === 'both' ? 
+            `, ts_headline('english', workflow_purpose, plainto_tsquery('english', $1), 
+              'MaxWords=${Math.floor(snippet_length/5)}, MinWords=${Math.floor(snippet_length/10)}, 
+               StartSel=<mark>, StopSel=</mark>') as purpose_snippet` : ''}
+      ` : '';
+      
       const pyemuQuery = `
         SELECT 
           notebook_file as filepath,
@@ -312,6 +363,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
           uncertainty_methods,
           ts_rank_cd(search_vector, plainto_tsquery('english', $1)) as relevance,
           'workflows' as source_type
+          ${pyemuSnippetFields}
         FROM pyemu_workflows
         WHERE ${whereConditions.join(' AND ')}
         ORDER BY relevance DESC
@@ -391,7 +443,15 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
         output += `   Tags: ${result.tags.slice(0, 5).join(', ')}\n`;
       }
       
-      if (result.description) {
+      // Show description or highlighted snippet
+      if (include_snippet && (result.description_snippet || result.purpose_snippet)) {
+        if (result.description_snippet && (snippet_source === 'description' || snippet_source === 'both')) {
+          output += `   Description Snippet: ${result.description_snippet}\n`;
+        }
+        if (result.purpose_snippet && (snippet_source === 'purpose' || snippet_source === 'both')) {
+          output += `   Purpose Snippet: ${result.purpose_snippet}\n`;
+        }
+      } else if (result.description) {
         const desc = result.description.substring(0, 200);
         output += `   Description: ${desc}${result.description.length > 200 ? '...' : ''}\n`;
       }
@@ -464,6 +524,7 @@ export async function searchExamples(args: any, sql: NeonQueryFunction<false, fa
     if (include_purpose) activeOptions.push('purpose');
     if (include_tags) activeOptions.push('tags');
     if (compact_arrays) activeOptions.push('compact');
+    if (include_snippet) activeOptions.push(`snippets(${snippet_source},${snippet_length}chars)`);
     output += activeOptions.length > 0 ? activeOptions.join(', ') : 'none';
     output += '\n';
 

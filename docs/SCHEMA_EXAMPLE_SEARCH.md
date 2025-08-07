@@ -6,12 +6,13 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
 
 ✅ **Phase 0 COMPLETE**: Minimal search-examples tool deployed and working  
 ✅ **Phase 1.1 COMPLETE**: Display control options implemented and deployed  
+✅ **Phase 1.2 COMPLETE**: Enhanced snippet display with ts_headline highlighting  
 ✅ **Phase 2.1 COMPLETE**: Filtering capabilities added, tested, and deployed  
-✅ **WORKING**: Full production deployment with all filters and display options  
-📊 **TESTED**: 10+ comprehensive test cases all passing  
-🎯 **NEXT**: Phase 1.2 (Enhanced snippets) or Phase 3.1 (Rich array search)
+✅ **WORKING**: Full production deployment with all filters, display options, and snippets  
+📊 **TESTED**: 15+ comprehensive test cases all passing  
+🎯 **NEXT**: Phase 3.1 (Rich array search) or Phase 3.2 (Hybrid search)
 
-### What's Implemented (Phase 0 + Phase 1.1 + Phase 2.1)
+### What's Implemented (Phase 0 + Phase 1.1 + Phase 1.2 + Phase 2.1)
 - Basic text search using `search_vector` and `plainto_tsquery`
 - Repository filtering (flopy, pyemu, or both)
 - Returns: title, description, complexity, model_type/workflow_type, packages
@@ -26,6 +27,10 @@ This document provides a comprehensive analysis of the `flopy_workflows` and `py
   - `include_purpose`: Show full workflow_purpose
   - `include_tags`: Show tags
   - `compact_arrays`: Show only first 2 items of arrays
+- **Phase 1.2**: Enhanced snippet display:
+  - `include_snippet`: Show highlighted search snippets using ts_headline
+  - `snippet_length`: Control snippet length (50-500 characters)  
+  - `snippet_source`: Choose snippet source (description/purpose/both)
 - **Phase 2.1**: Advanced filtering capabilities:
   - `model_type`: Filter by model type (mf6, mf6-gwf, mf2005, etc.)
   - `packages`: Filter by packages used (array)
@@ -586,6 +591,14 @@ mcp__mfaitools__search_examples({
   - [x] `compact_arrays` parameter
   - [x] Deployed and tested
 
+- [x] **Phase 1.2**: Enhanced snippet display (COMPLETE)
+  - [x] `include_snippet` parameter
+  - [x] `snippet_length` control (50-500 chars)
+  - [x] `snippet_source` selection (description/purpose/both)
+  - [x] ts_headline implementation with highlighted search terms
+  - [x] <mark> tag highlighting for search matches
+  - [x] Deployed and tested (3+ snippet test cases)
+
 - [x] **Phase 2.1**: Filtering capabilities (COMPLETE)
   - [x] `model_type` filter (mf6, mf6-gwf, mf2005, etc.)
   - [x] `packages` array filter with ANY/ALL logic
@@ -598,10 +611,6 @@ mcp__mfaitools__search_examples({
   - [x] Deployed and working in production
 
 ### ⏳ Pending Phases
-- [ ] **Phase 1.2**: Enhanced snippet display
-  - [ ] `include_snippet` parameter
-  - [ ] `snippet_length` control
-  - [ ] `snippet_source` selection
 
 - [ ] **Phase 3.1**: Rich array search
   - [ ] Search within array fields
