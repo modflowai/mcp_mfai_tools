@@ -5,6 +5,67 @@
 import type { NeonQueryFunction } from "@neondatabase/serverless";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
+// Helper functions for Phase 1.2: Enhanced formatting
+function formatArrayItems(
+  items: string[], 
+  maxItems: number, 
+  maxSnippetLength: number, 
+  title: string,
+  compact: boolean = false
+): string {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return '';
+  }
+  
+  let output = compact ? `   ${title}: ` : `   ${title}:\n`;
+  const displayItems = items.slice(0, maxItems);
+  
+  if (compact) {
+    // Compact format: "Title: item1 | item2 | item3..."
+    const compactItems = displayItems.map(item => 
+      item.substring(0, Math.min(maxSnippetLength, 80)).replace(/\n/g, ' ')
+    );
+    output += compactItems.join(' | ');
+    if (items.length > maxItems) {
+      output += ` | ... and ${items.length - maxItems} more`;
+    }
+    output += '\n';
+  } else {
+    // Full format: numbered list with proper truncation
+    displayItems.forEach((item, i) => {
+      const truncated = item.length > maxSnippetLength 
+        ? item.substring(0, maxSnippetLength) + '...' 
+        : item;
+      output += `     ${i + 1}. ${truncated}\n`;
+    });
+    if (items.length > maxItems) {
+      output += `     ... and ${items.length - maxItems} more\n`;
+    }
+  }
+  
+  return output;
+}
+
+function validateGitHubUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.hostname === 'github.com' && parsedUrl.pathname.includes('/');
+  } catch {
+    return false;
+  }
+}
+
+function formatSourceCode(sourceSnippet: string, maxLength: number = 500): string {
+  if (!sourceSnippet) return '';
+  
+  const truncated = sourceSnippet.length > maxLength
+    ? sourceSnippet.substring(0, maxLength) + '\n...'
+    : sourceSnippet;
+    
+  return `   Source Code:\n\`\`\`python\n${truncated}\n\`\`\`\n`;
+}
+
 export const searchCodeSchema = {
   name: "search_code",
   description: `
@@ -71,6 +132,19 @@ export const searchCodeSchema = {
         type: 'boolean',
         description: 'Include GitHub URLs (default: true)',
       },
+      // Phase 1.2: Enhanced formatting options
+      max_array_items: {
+        type: 'number',
+        description: 'Maximum array items to display (1-10, default: 3)',
+      },
+      snippet_length: {
+        type: 'number', 
+        description: 'Maximum length for array item snippets (50-300, default: 150)',
+      },
+      compact_format: {
+        type: 'boolean',
+        description: 'Use compact formatting for results (default: false)',
+      },
     },
     required: ['query'],
   }
@@ -90,8 +164,16 @@ export async function searchCode(
       include_errors = false,
       include_pest = false,
       include_source = false,
-      include_github = true
+      include_github = true,
+      // Phase 1.2: Enhanced formatting options
+      max_array_items = 3,
+      snippet_length = 150,
+      compact_format = false
     } = args;
+
+    // Validate formatting parameters
+    const maxItems = Math.min(Math.max(max_array_items || 3, 1), 10);
+    const maxSnippetLength = Math.min(Math.max(snippet_length || 150, 50), 300);
 
     console.log('[SEARCH CODE] Args received:', JSON.stringify({
       query,
@@ -102,7 +184,10 @@ export async function searchCode(
       include_errors,
       include_pest,
       include_source,
-      include_github
+      include_github,
+      max_array_items: maxItems,
+      snippet_length: maxSnippetLength,
+      compact_format
     }));
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -178,103 +263,56 @@ export async function searchCode(
     
     console.log('[SEARCH CODE] Final results count:', results.length);
 
-    // Format output with rich metadata
+    // Format output with enhanced metadata formatting
     let output = `Found ${results.length} code modules for "${query}"\n\n`;
     
     results.forEach((result, index) => {
-      output += `${index + 1}. **${result.filepath}** (${result.repo_name})\n`;
+      const resultPrefix = compact_format ? `${index + 1}. ` : `${index + 1}. `;
+      output += `${resultPrefix}**${result.filepath}** (${result.repo_name})\n`;
       
-      // Basic metadata
-      if (result.module_name) output += `   Module: ${result.module_name}\n`;
-      if (result.package_code) output += `   Package: ${result.package_code}\n`;
-      if (result.model_family) output += `   Model: ${result.model_family}\n`;
-      if (result.category) output += `   Category: ${result.category}\n`;
-      if (result.title) output += `   Purpose: ${result.title.substring(0, 200)}...\n`;
+      // Basic metadata - use compact format if requested
+      const metadataItems = [];
+      if (result.module_name) metadataItems.push(`Module: ${result.module_name}`);
+      if (result.package_code) metadataItems.push(`Package: ${result.package_code}`);
+      if (result.model_family) metadataItems.push(`Model: ${result.model_family}`);
+      if (result.category) metadataItems.push(`Category: ${result.category}`);
       
-      // GitHub URL
-      if (result.github_url) output += `   GitHub: ${result.github_url}\n`;
-      
-      // Rich arrays - FloPy fields
-      if (result.user_scenarios && Array.isArray(result.user_scenarios) && result.user_scenarios.length > 0) {
-        output += `   User Scenarios:\n`;
-        result.user_scenarios.slice(0, 3).forEach((scenario, i) => {
-          output += `     ${i + 1}. ${scenario.substring(0, 150)}${scenario.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.user_scenarios.length > 3) {
-          output += `     ... and ${result.user_scenarios.length - 3} more\n`;
-        }
+      if (compact_format && metadataItems.length > 0) {
+        output += `   ${metadataItems.join(' | ')}\n`;
+      } else {
+        metadataItems.forEach(item => output += `   ${item}\n`);
       }
       
-      if (result.related_concepts && Array.isArray(result.related_concepts) && result.related_concepts.length > 0) {
-        output += `   Related Concepts:\n`;
-        result.related_concepts.slice(0, 3).forEach((concept, i) => {
-          output += `     ${i + 1}. ${concept.substring(0, 150)}${concept.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.related_concepts.length > 3) {
-          output += `     ... and ${result.related_concepts.length - 3} more\n`;
-        }
+      if (result.title) {
+        const purposeText = result.title.substring(0, compact_format ? 100 : 200);
+        output += `   Purpose: ${purposeText}${result.title.length > (compact_format ? 100 : 200) ? '...' : ''}\n`;
       }
       
-      if (result.typical_errors && Array.isArray(result.typical_errors) && result.typical_errors.length > 0) {
-        output += `   Typical Errors:\n`;
-        result.typical_errors.slice(0, 3).forEach((error, i) => {
-          output += `     ${i + 1}. ${error.substring(0, 150)}${error.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.typical_errors.length > 3) {
-          output += `     ... and ${result.typical_errors.length - 3} more\n`;
-        }
+      // GitHub URL with validation
+      if (result.github_url && validateGitHubUrl(result.github_url)) {
+        output += `   GitHub: ${result.github_url}\n`;
       }
       
-      // Rich arrays - PyEMU fields
-      if (result.use_cases && Array.isArray(result.use_cases) && result.use_cases.length > 0) {
-        output += `   Use Cases:\n`;
-        result.use_cases.slice(0, 3).forEach((useCase, i) => {
-          output += `     ${i + 1}. ${useCase.substring(0, 150)}${useCase.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.use_cases.length > 3) {
-          output += `     ... and ${result.use_cases.length - 3} more\n`;
-        }
-      }
+      // Rich arrays - FloPy fields with enhanced formatting
+      output += formatArrayItems(result.user_scenarios, maxItems, maxSnippetLength, 'User Scenarios', compact_format);
+      output += formatArrayItems(result.related_concepts, maxItems, maxSnippetLength, 'Related Concepts', compact_format);
+      output += formatArrayItems(result.typical_errors, maxItems, maxSnippetLength, 'Typical Errors', compact_format);
       
-      if (result.statistical_concepts && Array.isArray(result.statistical_concepts) && result.statistical_concepts.length > 0) {
-        output += `   Statistical Concepts:\n`;
-        result.statistical_concepts.slice(0, 3).forEach((concept, i) => {
-          output += `     ${i + 1}. ${concept.substring(0, 150)}${concept.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.statistical_concepts.length > 3) {
-          output += `     ... and ${result.statistical_concepts.length - 3} more\n`;
-        }
-      }
+      // Rich arrays - PyEMU fields with enhanced formatting
+      output += formatArrayItems(result.use_cases, maxItems, maxSnippetLength, 'Use Cases', compact_format);
+      output += formatArrayItems(result.statistical_concepts, maxItems, maxSnippetLength, 'Statistical Concepts', compact_format);
+      output += formatArrayItems(result.common_pitfalls, maxItems, maxSnippetLength, 'Common Pitfalls', compact_format);
+      output += formatArrayItems(result.pest_integration, maxItems, maxSnippetLength, 'PEST Integration', compact_format);
       
-      if (result.common_pitfalls && Array.isArray(result.common_pitfalls) && result.common_pitfalls.length > 0) {
-        output += `   Common Pitfalls:\n`;
-        result.common_pitfalls.slice(0, 3).forEach((pitfall, i) => {
-          output += `     ${i + 1}. ${pitfall.substring(0, 150)}${pitfall.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.common_pitfalls.length > 3) {
-          output += `     ... and ${result.common_pitfalls.length - 3} more\n`;
-        }
-      }
-      
-      if (result.pest_integration && Array.isArray(result.pest_integration) && result.pest_integration.length > 0) {
-        output += `   PEST Integration:\n`;
-        result.pest_integration.slice(0, 3).forEach((integration, i) => {
-          output += `     ${i + 1}. ${integration.substring(0, 150)}${integration.length > 150 ? '...' : ''}\n`;
-        });
-        if (result.pest_integration.length > 3) {
-          output += `     ... and ${result.pest_integration.length - 3} more\n`;
-        }
-      }
-      
-      // Source code snippet
+      // Source code snippet with enhanced formatting
       if (result.source_snippet) {
-        output += `   Source Code:\n\`\`\`python\n${result.source_snippet}${result.source_snippet.length >= 500 ? '\n...' : ''}\n\`\`\`\n`;
+        output += formatSourceCode(result.source_snippet, compact_format ? 300 : 500);
       }
       
       output += `   Relevance: ${result.relevance_score.toFixed(3)}\n\n`;
     });
     
-    // Add debug information
+    // Add enhanced debug information
     output += `\nDebug Info:\n`;
     output += `- Search term: "${searchTerm}"\n`;
     output += `- Repository: ${repository || 'all'}\n`;
@@ -286,6 +324,7 @@ export async function searchCode(
       include_source && 'source',
       include_github && 'github'
     ].filter(Boolean).join(', ') || 'none'}\n`;
+    output += `- Formatting: ${compact_format ? 'compact' : 'full'} (max ${maxItems} items, ${maxSnippetLength} chars)\n`;
     output += `- Results found: ${results.length}/${limit}\n`;
 
     return {
