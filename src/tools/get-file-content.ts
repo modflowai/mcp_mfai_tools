@@ -299,27 +299,30 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         console.log('[LOAD CONTENT DEBUG] Using pagination with start:', start, 'length:', length);
         console.log('[LOAD CONTENT DEBUG] About to execute SUBSTRING query for pyemu_workflows...');
         
-        // Special handling for known problematic file
+        // Special handling for gpr_emulation_hosaki.ipynb - skip first character to avoid escape error
         if (source_query === 'gpr_emulation_hosaki.ipynb') {
-          console.log('[LOAD CONTENT WARNING] Problematic file detected - using alternative retrieval method');
+          console.log('[LOAD CONTENT WARNING] Special handling for gpr_emulation_hosaki.ipynb - skipping first character');
+          
+          // Adjust start position to skip first character that causes "invalid escape string" error
+          const adjustedStart = start === 1 ? 2 : start;
+          const adjustedLength = start === 1 ? length - 1 : length;
           
           try {
-            // Try to get just the first 1000 characters as a test
-            console.log('[LOAD CONTENT DEBUG] Attempting to retrieve first 1000 characters only...');
+            console.log('[LOAD CONTENT DEBUG] Using adjusted SUBSTRING with start:', adjustedStart, 'length:', adjustedLength);
             result = await sql.query(`
-              SELECT LEFT(source_code::text, 1000) as content
+              SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
               FROM pyemu_workflows
-              WHERE notebook_file = $1
-            `, [source_query]);
-            console.log('[LOAD CONTENT DEBUG] Successfully retrieved partial content');
+              WHERE notebook_file = $3
+            `, [adjustedStart, adjustedLength, source_query]);
+            console.log('[LOAD CONTENT DEBUG] Successfully retrieved content with adjusted positions');
             
-            // Return with a note that this is truncated
-            if (result && result.length > 0) {
-              result[0].content = `[NOTE: This file contains invalid escape sequences. Showing first 1000 characters only]\n\n${result[0].content}\n\n[... remaining content cannot be retrieved due to database storage issues ...]`;
+            // Prepend the missing first character '{' if we're on page 1
+            if (result && result.length > 0 && start === 1) {
+              result[0].content = '{' + result[0].content;
             }
-          } catch (partialError) {
-            console.log('[LOAD CONTENT DEBUG] Even partial retrieval failed:', partialError.message);
-            throw new Error(`File content is completely corrupted and cannot be retrieved. The file exists but its content in the database contains invalid data that PostgreSQL cannot process.`);
+          } catch (substringError) {
+            console.log('[LOAD CONTENT DEBUG] Adjusted SUBSTRING failed:', substringError.message);
+            throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
           }
         } else {
           // Standard approach for other files
