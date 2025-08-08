@@ -241,19 +241,21 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         const length = SAFE_CONTENT_LIMIT;
         
         if (source_query.startsWith('%')) {
-          result = await sql`
-            SELECT SUBSTRING(content::text FROM ${start} FOR ${length}) as content
+          // Use SUBSTR to avoid escape string issues
+          result = await sql.query(`
+            SELECT SUBSTR(content::text, $1, $2) as content
             FROM repository_files
-            WHERE repo_name = ${metadata.repository || 'unknown'}
-              AND filepath LIKE ${source_query}
-          `;
+            WHERE repo_name = $3
+              AND filepath LIKE $4
+          `, [start, length, metadata.repository || 'unknown', source_query]);
         } else {
-          result = await sql`
-            SELECT SUBSTRING(content::text FROM ${start} FOR ${length}) as content
+          // Use SUBSTR to avoid escape string issues
+          result = await sql.query(`
+            SELECT SUBSTR(content::text, $1, $2) as content
             FROM repository_files
-            WHERE repo_name = ${metadata.repository || 'unknown'}
-              AND filepath = ${source_query}
-          `;
+            WHERE repo_name = $3
+              AND filepath = $4
+          `, [start, length, metadata.repository || 'unknown', source_query]);
         }
       } else {
         // Load full content
@@ -277,9 +279,9 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
-        // Use query method with proper escaping for JSON content
+        // Use SUBSTR to avoid escape string issues
         result = await sql.query(`
-          SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
+          SELECT SUBSTR(source_code::text, $1, $2) as content
           FROM flopy_workflows
           WHERE tutorial_file = $3
         `, [start, length, source_query]);
@@ -355,16 +357,18 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         const length = SAFE_CONTENT_LIMIT;
         
         if (source_query.startsWith('%')) {
+          // Use SUBSTR to avoid escape string issues
           const query = `
-            SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+            SELECT SUBSTR(source_code::text, ${start}, ${length}) as content
             FROM ${source_table}
             WHERE file_path LIKE $1
           `;
           result = await sql.query(query, [source_query]);
         } else {
           const fullPathPattern = `/home/danilopezmella/%/${source_query}`;
+          // Use SUBSTR to avoid escape string issues
           const query = `
-            SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+            SELECT SUBSTR(source_code::text, ${start}, ${length}) as content
             FROM ${source_table}
             WHERE file_path = $1 OR file_path LIKE $2
             LIMIT 1

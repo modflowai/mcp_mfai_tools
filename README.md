@@ -717,6 +717,38 @@ This project is designed to serve the MODFLOW/PEST community with powerful, user
 - **Examples**: Working examples in `examples/` directory
 - **Community**: MODFLOW user forums and mailing lists
 
+## 📝 Recent Updates
+
+### January 8, 2025 - Critical Bug Fixes
+
+#### ✅ Fixed get_file_content Pagination Issues
+- **Problem**: Large files (>70KB) were failing with "invalid escape string" errors
+- **Root Cause**: PostgreSQL's SUBSTRING function was interpreting escape sequences in JSON/notebook content
+- **Solution**: Replaced SUBSTRING with SUBSTR function which treats content as raw text
+- **Impact**: All file types now load correctly including complex Jupyter notebooks and documentation
+
+#### ✅ Optimized Page Size for MCP Token Limits
+- **Problem**: Large pages exceeded MCP's 25,000 token response limit
+- **Solution**: Reduced page size from 70KB to 30KB per page
+- **Result**: gpr_emulation_hosaki.ipynb (5.3MB) now properly paginated into 179 pages
+
+#### ✅ Improved Pagination Architecture
+- **Enhancement**: Separated metadata checking from content loading
+- **New Functions**: 
+  - `checkFileMetadata()` - Gets file size without loading content
+  - `loadFileContent()` - Handles pagination with proper SUBSTR queries
+- **Benefit**: Prevents loading entire large files into memory before pagination
+
+#### ✅ Enhanced Observability
+- **Added**: Cloudflare Workers observability configuration
+- **Benefit**: Better debugging and monitoring of production issues
+
+### Known Working Examples
+- ✅ pestpp-ies.md (147KB, 5 pages)
+- ✅ gpr_emulation_hosaki.ipynb (5.3MB, 179 pages)
+- ✅ All FloPy/PyEMU modules and workflows
+- ✅ All PEST/MODFLOW documentation files
+
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) file for details.
