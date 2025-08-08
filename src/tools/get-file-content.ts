@@ -72,9 +72,9 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
               file_type,
               created_at,
               length(content) as file_size,
-              '${strategy.table}' as source_table,
-              '${strategy.column}' as source_column,
-              '${strategy.query}' as source_query
+              ${strategy.table} as source_table,
+              ${strategy.column} as source_column,
+              ${strategy.query} as source_query
             FROM repository_files
             WHERE repo_name = ${repository}
               AND filepath LIKE ${strategy.query}
@@ -88,9 +88,9 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
               file_type,
               created_at,
               length(content) as file_size,
-              '${strategy.table}' as source_table,
-              '${strategy.column}' as source_column,
-              '${strategy.query}' as source_query
+              ${strategy.table} as source_table,
+              ${strategy.column} as source_column,
+              ${strategy.query} as source_query
             FROM repository_files
             WHERE repo_name = ${repository}
               AND filepath = ${strategy.query}
@@ -110,9 +110,9 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
             workflow_purpose,
             best_use_cases,
             title,
-            '${strategy.table}' as source_table,
-            '${strategy.column}' as source_column,
-            '${strategy.query}' as source_query
+            ${strategy.table} as source_table,
+            ${strategy.column} as source_column,
+            ${strategy.query} as source_query
           FROM flopy_workflows
           WHERE tutorial_file = ${strategy.query}
         `;
@@ -130,15 +130,17 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
             workflow_purpose,
             common_applications as best_use_cases,
             title,
-            '${strategy.table}' as source_table,
-            '${strategy.column}' as source_column,
-            '${strategy.query}' as source_query
+            ${strategy.table} as source_table,
+            ${strategy.column} as source_column,
+            ${strategy.query} as source_query
           FROM pyemu_workflows
           WHERE notebook_file = ${strategy.query}
         `;
       } else if (strategy.table === 'flopy_modules' || strategy.table === 'pyemu_modules') {
         if (strategy.query.startsWith('%')) {
           // Use LIKE for partial matches - metadata only
+          const packageColumn = strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code';
+          const familyColumn = strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family';
           result = await sql.query(`
             SELECT 
               module_docstring as analysis,
@@ -150,18 +152,20 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
               'module' as file_type,
               NULL as created_at,
               length(source_code) as file_size,
-              ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
-              ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
+              ${packageColumn},
+              ${familyColumn},
               semantic_purpose,
-              '${strategy.table}' as source_table,
-              '${strategy.column}' as source_column,
-              $2 as source_query
+              $2 as source_table,
+              $3 as source_column,
+              $4 as source_query
             FROM ${strategy.table}
             WHERE file_path LIKE $1
-          `, [strategy.query, strategy.query]);
+          `, [strategy.query, strategy.table, strategy.column, strategy.query]);
         } else {
           // For exact match, also try with the full path prefix pattern - metadata only
           const fullPathPattern = `/home/danilopezmella/%/${strategy.query}`;
+          const packageColumn = strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code';
+          const familyColumn = strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family';
           result = await sql.query(`
             SELECT 
               module_docstring as analysis,
@@ -173,15 +177,15 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
               'module' as file_type,
               NULL as created_at,
               length(source_code) as file_size,
-              ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
-              ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
+              ${packageColumn},
+              ${familyColumn},
               semantic_purpose,
-              '${strategy.table}' as source_table,
-              '${strategy.column}' as source_column,
-              $3 as source_query
+              $3 as source_table,
+              $4 as source_column,
+              $5 as source_query
             FROM ${strategy.table}
             WHERE file_path = $1 OR file_path LIKE $2
-          `, [strategy.query, fullPathPattern, strategy.query]);
+          `, [strategy.query, fullPathPattern, strategy.table, strategy.column, strategy.query]);
         }
       }
       
