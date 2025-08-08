@@ -24,8 +24,8 @@ DEBUG = "true"
 # Development mode - NEVER set to "true" in production!
 DEVELOPMENT_MODE = "false"
 # Comma-separated lists of allowed users
-ALLOWED_GITHUB_USERS = "modflowai,danilopezmella"
-ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai"
+ALLOWED_GITHUB_USERS = "danilopezmella,modflowai,tvejarf,tamvejarf,reneangermeyer,valeriarosselb,roh-sgm,sebaalday,BegoUr,Arielzs2610,NicoGavilio,Ernestopoti,ThiareGD,fcovaldivieso,julssD"
+ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai,zunigasm.ariel@gmail.com,vair.pointon@gmail.com,bheinle@barr.com,fcovaldivieso@gmail.com,saulmontoya@gmail.com,fzeladas@gmail.com,aria.tzhang@gmail.com,cetin.ekiz@gmail.com"
 
 # Secrets to set with wrangler secret put:
 # MODFLOW_AI_MCP_01_CONNECTION_STRING
