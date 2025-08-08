@@ -68,10 +68,10 @@ pnpm run test:client
 
 ### Production Mode
 ```bash
-# Deploy to Cloudflare Workers
-npx wrangler deploy
+# IMPORTANT: Deploy from the config/ directory where wrangler.toml is located
+cd config && npx wrangler deploy
 
-# Use automated deployment script
+# Or use automated deployment script (if available)
 ./deploy.sh
 
 # Update secrets easily
@@ -318,9 +318,9 @@ console.log("[MCP] Registered tools:", searchExamplesSchema.name, searchCodeSche
 
 #### Step 3: Deploy and Test
 
-1. **Deploy to Cloudflare**:
+1. **Deploy to Cloudflare** (from config/ directory):
 ```bash
-npx wrangler deploy
+cd config && npx wrangler deploy
 ```
 
 2. **Test locally** (optional):
@@ -403,8 +403,8 @@ curl -X POST "http://localhost:8787/mcp" \
 
 #### Production Testing
 ```bash
-# Deploy to Cloudflare
-npx wrangler deploy
+# Deploy to Cloudflare (from config/ directory)
+cd config && npx wrangler deploy
 
 # Check deployment logs
 npx wrangler tail mcp-mfai-tools --format pretty
@@ -510,11 +510,13 @@ The development server at `http://localhost:8787` provides:
 
 ## Deployment Notes
 
-- Use `./deploy.sh` for automated deployments
+- **IMPORTANT: Always deploy from the `config/` directory**: `cd config && npx wrangler deploy`
+- Use `./deploy.sh` for automated deployments (if available)
 - Use `./update-secrets.sh` to easily update secrets from .env file
 - Always update user allowlists in `wrangler.toml` before deployment
 - OAuth redirect URLs must match the deployed worker URL: https://mcp-mfai-tools.little-grass-273a.workers.dev/callback
 - KV namespace is already created: `c6668cdb8dfc4f2abf67aab912b3fc27`
+- Wait ~30 seconds after deployment for Cloudflare edge propagation
 
 ## Troubleshooting & Known Issues
 
