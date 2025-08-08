@@ -423,7 +423,7 @@ export const getFileContentSchema = {
     properties: {
       repository: {
         type: 'string',
-        description: 'Repository name (flopy, mfusg, pest, pestpp, pest_hp, pyemu, mf6, plproc, gwutils)',
+        description: 'Repository name (modflowai, mf6, mfusg, pest, pestpp, pest_hp, plproc, gwutils, flopy, pyemu)',
       },
       filepath: {
         type: 'string',
@@ -459,7 +459,7 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     }
 
     // Validate repository
-    const validRepos = ['flopy', 'mfusg', 'pest', 'pestpp', 'pest_hp', 'pyemu', 'mf6', 'plproc', 'gwutils'];
+    const validRepos = ['modflowai', 'flopy', 'mfusg', 'pest', 'pestpp', 'pest_hp', 'pyemu', 'mf6', 'plproc', 'gwutils'];
     if (!validRepos.includes(repository)) {
       throw new Error(`Invalid repository '${repository}'. Valid options: ${validRepos.join(', ')}`);
     }

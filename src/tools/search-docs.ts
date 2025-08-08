@@ -42,7 +42,7 @@ interface SearchResultItem {
 // Tool schema definition
 export const searchDocsSchema = {
   name: "search_docs",
-  description: 'Full-text search across MODFLOW/PEST documentation for exact keywords and phrases. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples. Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets and rich metadata (packages, complexity, tags). Use for specific technical terms, parameter names, package codes, workflow types. Examples: "WEL package", "hydraulic conductivity", "parameter estimation", "time series". For conceptual searches, use semantic_search_docs instead.',
+  description: 'Full-text search across MODFLOW/PEST documentation for exact keywords and phrases. Searches documentation (MODFLOW AI, MODFLOW 6, MODFLOW-USG, PEST, PEST++, PEST_HP, PLPROC, gwutils) and code modules (FloPy, PyEMU). Supports Boolean operators (AND/OR/NOT), wildcards (*), phrase search, and acronym expansion. Returns relevance-ranked results with highlighted snippets and rich metadata (packages, complexity, tags). Use for specific technical terms, parameter names, package codes, workflow types. Examples: "what is modflow ai", "WEL package", "hydraulic conductivity", "parameter estimation", "time series". For conceptual searches, use semantic_search_docs instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -52,7 +52,7 @@ export const searchDocsSchema = {
       },
       repository: {
         type: 'string',
-        description: 'Repository to search: Documentation (mfusg, pest, pestpp, pest_hp, mf6, plproc, gwutils) or Code modules (flopy, pyemu). If not specified, searches all repositories.',
+        description: 'Repository to search: Documentation (modflowai, mf6, mfusg, pest, pestpp, pest_hp, plproc, gwutils) or Code modules (flopy, pyemu). If not specified, searches all repositories.',
       },
       file_type: {
         type: 'string',
@@ -100,7 +100,7 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
     }
 
     // Validate repository if specified
-    const docRepos = ['mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
+    const docRepos = ['modflowai', 'mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
     const codeRepos = ['flopy', 'pyemu'];
     const allRepos = [...docRepos, ...codeRepos];
     

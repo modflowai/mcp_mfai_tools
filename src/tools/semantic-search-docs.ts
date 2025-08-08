@@ -41,7 +41,7 @@ interface SemanticSearchResultItem {
 // Tool schema definition
 export const semanticSearchDocsSchema = {
   name: "semantic_search_docs",
-  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW 6, PEST, MODFLOW-USG), code modules (FloPy, PyEMU), and workflow tutorials/examples with vector similarity ranking. Supports filtering by model_family, package_code, category, workflow_type, or complexity. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "pumping water from aquifer", "model calibration workflow", "uncertainty analysis", "time-varying boundary conditions". For exact keyword matching, use search_docs instead.',
+  description: 'AI-powered semantic search using OpenAI embeddings to find conceptually related content across MODFLOW/PEST repositories. Understands query meaning and finds similar concepts even with different terminology. Searches documentation (MODFLOW AI, MODFLOW 6, MODFLOW-USG, PEST, PEST++, PEST_HP, PLPROC, gwutils) and code modules (FloPy, PyEMU) with vector similarity ranking. Supports filtering by model_family, package_code, category, workflow_type, or complexity. Use for conceptual questions, "how to" queries, and exploratory research. Examples: "what is modflow ai", "pumping water from aquifer", "model calibration workflow", "uncertainty analysis", "time-varying boundary conditions". For exact keyword matching, use search_docs instead.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -51,7 +51,7 @@ export const semanticSearchDocsSchema = {
       },
       repository: {
         type: 'string',
-        description: 'Repository to search: Documentation (mfusg, pest, pestpp, pest_hp, mf6, plproc, gwutils) or Code modules (flopy, pyemu). If not specified, searches all repositories.',
+        description: 'Repository to search: Documentation (modflowai, mf6, mfusg, pest, pestpp, pest_hp, plproc, gwutils) or Code modules (flopy, pyemu). If not specified, searches all repositories.',
       },
       filter: {
         type: 'object',
@@ -94,7 +94,7 @@ export async function semanticSearchDocs(args: any, sql: NeonQueryFunction<false
     }
 
     // Validate repository if specified
-    const docRepos = ['mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
+    const docRepos = ['modflowai', 'mfusg', 'pest', 'pestpp', 'pest_hp', 'mf6', 'plproc', 'gwutils'];
     const codeRepos = ['flopy', 'pyemu'];
     const allRepos = [...docRepos, ...codeRepos];
     
