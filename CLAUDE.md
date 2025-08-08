@@ -137,13 +137,11 @@ The server provides four specialized tools for MODFLOW/PEST documentation and co
    - Best for: Implementation details, class definitions, method signatures
 
 3. **search_documentation** - Theory and reference search
-   - Searches comprehensive documentation repositories
-   - **LIMITED TO 3 WORDS MAXIMUM** for optimal text search performance
-   - Default: 1 result (max 3 results allowed)
+   - Searches comprehensive documentation repositories including MODFLOW AI
    - Returns mathematical theory and conceptual explanations
    - Includes key concepts and scientific principles
    - Automatically expands detected acronyms
-   - Best for: Understanding concepts, mathematical formulations, reference material
+   - Best for: Understanding concepts, mathematical formulations, reference material, and "what is modflow ai" queries
 
 ### Utility Tool
 4. **get_file_content** - Direct file retrieval
@@ -465,6 +463,7 @@ The search tools query the `repository_files` table with columns:
 - `embedding`: Vector embeddings for semantic search (where available)
 
 ### Available Repositories
+- **modflowai**: MODFLOW AI MCP Server documentation - technical docs and website content explaining what MODFLOW AI is, how it works, and its capabilities
 - **mf6**: MODFLOW 6 documentation
 - **pest**: Parameter Estimation package documentation  
 - **pestpp**: PEST++ enhanced version documentation
