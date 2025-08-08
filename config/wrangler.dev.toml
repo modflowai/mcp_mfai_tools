@@ -26,6 +26,10 @@ new_sqlite_classes = ["MinimalMCP"]
 DEBUG = "true"
 # IMPORTANT: Enable development mode to bypass OAuth
 DEVELOPMENT_MODE = "true"
+# Telemetry - SAFE: can enable for testing
+TELEMETRY_ENABLED = "false"
+TELEMETRY_BATCH_SIZE = "5"
+TELEMETRY_FLUSH_INTERVAL = "10000"
 # User lists (not used in dev mode but kept for consistency)
 ALLOWED_GITHUB_USERS = "modflowai,danilopezmella"
 ALLOWED_GOOGLE_USERS = "daniel.lopez.me@gmail.com,admin@modflow.ai"

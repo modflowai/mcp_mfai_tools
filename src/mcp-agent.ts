@@ -21,7 +21,9 @@ import { getFileContentSchema, getFileContentTool } from "./tools/get-file-conte
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
 import { searchTutorialsSchema, searchTutorials } from "./tools/search-tutorials.js";
 import { semanticSearchTutorialsSchema, semanticSearchTutorials } from "./tools/semantic-search-tutorials.js";
-
+// Import telemetry
+import { McpTelemetryService } from "./utils/telemetry.js";
+import { createTelemetryEvent } from "./types/telemetry.js";
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -81,6 +83,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   sql: any;  // Database connection
   private env: Env;  // Store env reference
   protected props!: Props;  // Store props reference (assigned in init)
+  private telemetry: McpTelemetryService;  // Telemetry service
   
   // User access control lists
   private ALLOWED_GITHUB_USERS: Set<string> = new Set();
@@ -91,6 +94,15 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
     super(ctx, env);
     this.env = env;  // Store for later access
     
+    // Initialize database connection
+    this.sql = neon(env.MODFLOW_AI_MCP_01_CONNECTION_STRING);
+    
+    // Initialize telemetry service (disabled by default)
+    this.telemetry = new McpTelemetryService({
+      enabled: env.TELEMETRY_ENABLED === 'true',
+      batchSize: parseInt(env.TELEMETRY_BATCH_SIZE || '10'),
+      flushInterval: parseInt(env.TELEMETRY_FLUSH_INTERVAL || '30000')
+    }, this.sql);
     
     // Check if in development mode
     this.isDevelopmentMode = env.DEVELOPMENT_MODE === 'true';
@@ -156,8 +168,8 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         );
       }
     } else {
-      // Initialize database connection
-      this.sql = neon(this.env.MODFLOW_AI_MCP_01_CONNECTION_STRING);
+      // Database connection already initialized in constructor
+      console.log('[MCP] Using database connection initialized in constructor');
     }
 
     
@@ -230,6 +242,33 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       const { name, arguments: args } = request.params;
       console.log(`[MCP] User ${user.login || user.email} called tool: ${name}`);
       console.log('[MCP] Extracted args:', JSON.stringify(args, null, 2));
+      
+      // Generate request ID and start time for telemetry
+      const requestId = McpTelemetryService.generateRequestId();
+      const startTime = Date.now();
+      
+      // Capture telemetry (async, won't block tool execution)
+      if (this.telemetry.isEnabled()) {
+        const telemetryEvent = createTelemetryEvent(
+          name,
+          args,
+          {
+            id: user.login || user.email || 'unknown',
+            username: user.name || user.login || user.email || 'unknown',
+            provider: user.provider || 'unknown' as any
+          },
+          requestId,
+          { 
+            userAgent: 'MCP-Client', // Could extract from request headers if available
+            isDevelopmentMode: this.isDevelopmentMode 
+          }
+        );
+        
+        // Capture asynchronously - won't block tool execution
+        this.telemetry.capture(telemetryEvent).catch(err => {
+          console.error('[TELEMETRY] Async capture failed:', err);
+        });
+      }
       
       switch (name) {
         case 'search_docs':
