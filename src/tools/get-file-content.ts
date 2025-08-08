@@ -299,29 +299,32 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         console.log('[LOAD CONTENT DEBUG] Using pagination with start:', start, 'length:', length);
         console.log('[LOAD CONTENT DEBUG] About to execute SUBSTRING query for pyemu_workflows...');
         
-        // Try different approaches for handling the escape sequences
-        try {
-          // First attempt: Use encode() to convert to bytea and then back
-          console.log('[LOAD CONTENT DEBUG] Attempting bytea encoding approach...');
-          result = await sql.query(`
-            SELECT convert_from(
-              substring(
-                source_code::text::bytea 
-                FROM $1 
-                FOR $2
-              ), 
-              'UTF8'
-            ) as content
-            FROM pyemu_workflows
-            WHERE notebook_file = $3
-          `, [start, length, source_query]);
-          console.log('[LOAD CONTENT DEBUG] Bytea approach successful, result rows:', result?.length);
-        } catch (byteaError) {
-          console.log('[LOAD CONTENT DEBUG] Bytea approach failed:', byteaError.message);
+        // Special handling for known problematic file
+        if (source_query === 'gpr_emulation_hosaki.ipynb') {
+          console.log('[LOAD CONTENT WARNING] Problematic file detected - using alternative retrieval method');
           
-          // Second attempt: Use regular query with proper escaping
           try {
-            console.log('[LOAD CONTENT DEBUG] Attempting standard query approach...');
+            // Try to get just the first 1000 characters as a test
+            console.log('[LOAD CONTENT DEBUG] Attempting to retrieve first 1000 characters only...');
+            result = await sql.query(`
+              SELECT LEFT(source_code::text, 1000) as content
+              FROM pyemu_workflows
+              WHERE notebook_file = $1
+            `, [source_query]);
+            console.log('[LOAD CONTENT DEBUG] Successfully retrieved partial content');
+            
+            // Return with a note that this is truncated
+            if (result && result.length > 0) {
+              result[0].content = `[NOTE: This file contains invalid escape sequences. Showing first 1000 characters only]\n\n${result[0].content}\n\n[... remaining content cannot be retrieved due to database storage issues ...]`;
+            }
+          } catch (partialError) {
+            console.log('[LOAD CONTENT DEBUG] Even partial retrieval failed:', partialError.message);
+            throw new Error(`File content is completely corrupted and cannot be retrieved. The file exists but its content in the database contains invalid data that PostgreSQL cannot process.`);
+          }
+        } else {
+          // Standard approach for other files
+          try {
+            console.log('[LOAD CONTENT DEBUG] Using standard SUBSTRING query...');
             result = await sql.query(`
               SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
               FROM pyemu_workflows
