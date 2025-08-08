@@ -293,33 +293,50 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
     } else if (source_table === 'pyemu_workflows') {
       console.log('[LOAD CONTENT DEBUG] Processing pyemu_workflows table...');
       
-      // Special handling for known problematic files
-      if (source_query === 'gpr_emulation_hosaki.ipynb') {
-        console.log('[LOAD CONTENT WARNING] Known problematic file detected: gpr_emulation_hosaki.ipynb');
-        console.log('[LOAD CONTENT WARNING] This file contains invalid escape sequences that prevent retrieval');
-        throw new Error('File content contains invalid escape sequences and cannot be retrieved. This is a known issue with gpr_emulation_hosaki.ipynb in the database.');
-      }
-      
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
         console.log('[LOAD CONTENT DEBUG] Using pagination with start:', start, 'length:', length);
         console.log('[LOAD CONTENT DEBUG] About to execute SUBSTRING query for pyemu_workflows...');
-        // Use query method with proper escaping for JSON content
+        
+        // Try different approaches for handling the escape sequences
         try {
+          // First attempt: Use encode() to convert to bytea and then back
+          console.log('[LOAD CONTENT DEBUG] Attempting bytea encoding approach...');
           result = await sql.query(`
-            SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
+            SELECT convert_from(
+              substring(
+                source_code::text::bytea 
+                FROM $1 
+                FOR $2
+              ), 
+              'UTF8'
+            ) as content
             FROM pyemu_workflows
             WHERE notebook_file = $3
           `, [start, length, source_query]);
-          console.log('[LOAD CONTENT DEBUG] SUBSTRING query successful, result rows:', result?.length);
-        } catch (substringError) {
-          console.log('[LOAD CONTENT DEBUG] SUBSTRING query failed:', substringError);
-          // Check if this is an escape string error
-          if (substringError.message && substringError.message.includes('invalid escape string')) {
-            throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
+          console.log('[LOAD CONTENT DEBUG] Bytea approach successful, result rows:', result?.length);
+        } catch (byteaError) {
+          console.log('[LOAD CONTENT DEBUG] Bytea approach failed:', byteaError.message);
+          
+          // Second attempt: Use regular query with proper escaping
+          try {
+            console.log('[LOAD CONTENT DEBUG] Attempting standard query approach...');
+            result = await sql.query(`
+              SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
+              FROM pyemu_workflows
+              WHERE notebook_file = $3
+            `, [start, length, source_query]);
+            console.log('[LOAD CONTENT DEBUG] Standard query successful, result rows:', result?.length);
+          } catch (substringError) {
+            console.log('[LOAD CONTENT DEBUG] Standard query failed:', substringError.message);
+            
+            // Check if this is an escape string error
+            if (substringError.message && substringError.message.includes('invalid escape string')) {
+              throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
+            }
+            throw substringError;
           }
-          throw substringError;
         }
       } else {
         console.log('[LOAD CONTENT DEBUG] Loading full content without pagination...');
