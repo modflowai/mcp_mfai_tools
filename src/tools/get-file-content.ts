@@ -205,7 +205,7 @@ async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repositor
 // Load content with pagination support
 async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: any, page?: number, force_full?: boolean) {
   const { source_table, source_column, source_query, file_size } = metadata;
-  const SAFE_CONTENT_LIMIT = 70000;
+  const SAFE_CONTENT_LIMIT = 30000; // Reduced to stay under MCP's 25,000 token limit
   
   console.log('[LOAD CONTENT DEBUG] Starting with:', JSON.stringify({ 
     source_table, 
