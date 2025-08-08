@@ -268,11 +268,12 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
-        result = await sql`
-          SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+        // Use query method with proper escaping for JSON content
+        result = await sql.query(`
+          SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
           FROM flopy_workflows
-          WHERE tutorial_file = ${source_query}
-        `;
+          WHERE tutorial_file = $3
+        `, [start, length, source_query]);
       } else {
         result = await sql`
           SELECT source_code::text as content
@@ -284,11 +285,12 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
-        result = await sql`
-          SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+        // Use query method with proper escaping for JSON content
+        result = await sql.query(`
+          SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
           FROM pyemu_workflows
-          WHERE notebook_file = ${source_query}
-        `;
+          WHERE notebook_file = $3
+        `, [start, length, source_query]);
       } else {
         result = await sql`
           SELECT source_code::text as content
