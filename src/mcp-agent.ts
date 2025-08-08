@@ -247,8 +247,49 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       const requestId = McpTelemetryService.generateRequestId();
       const startTime = Date.now();
       
-      // Capture telemetry (async, won't block tool execution)
+      // Extract user agent from request headers (if available)
+      const userAgent = (request as any).headers?.['user-agent'] || 
+                       (request as any).meta?.userAgent || 
+                       'MCP-Client';
+      
+      // Execute the tool
+      let result;
+      switch (name) {
+        case 'search_docs':
+          result = await this.handleSearchDocs(args);
+          break;
+        
+        case 'semantic_search_docs':
+          result = await this.handleSemanticSearchDocs(args);
+          break;
+        
+        case 'get_file_content':
+          result = await this.handleGetFileContent(args);
+          break;
+        
+        case 'search_code':
+          result = await this.handleSearchCode(args);
+          break;
+        
+        case 'search_tutorials':
+          result = await this.handleSearchTutorials(args);
+          break;
+        
+        case 'semantic_search_tutorials':
+          result = await this.handleSemanticSearchTutorials(args);
+          break;
+        
+        default:
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            `Unknown tool: ${name}`
+          );
+      }
+      
+      // Capture telemetry after execution (fire-and-forget, won't block response)
       if (this.telemetry.isEnabled()) {
+        const executionTimeMs = Date.now() - startTime;
+        
         const telemetryEvent = createTelemetryEvent(
           name,
           args,
@@ -259,42 +300,19 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
           },
           requestId,
           { 
-            userAgent: 'MCP-Client', // Could extract from request headers if available
             isDevelopmentMode: this.isDevelopmentMode 
-          }
+          },
+          executionTimeMs,
+          userAgent
         );
         
-        // Capture asynchronously - won't block tool execution
-        this.telemetry.capture(telemetryEvent).catch(err => {
-          console.error('[TELEMETRY] Async capture failed:', err);
+        // Fire-and-forget: don't await, don't block the response
+        this.telemetry.capture(telemetryEvent).catch(() => {
+          // Silent error handling - completely invisible to users
         });
       }
       
-      switch (name) {
-        case 'search_docs':
-          return await this.handleSearchDocs(args);
-        
-        case 'semantic_search_docs':
-          return await this.handleSemanticSearchDocs(args);
-        
-        case 'get_file_content':
-          return await this.handleGetFileContent(args);
-        
-        case 'search_code':
-          return await this.handleSearchCode(args);
-        
-        case 'search_tutorials':
-          return await this.handleSearchTutorials(args);
-        
-        case 'semantic_search_tutorials':
-          return await this.handleSemanticSearchTutorials(args);
-        
-        default:
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            `Unknown tool: ${name}`
-          );
-      }
+      return result;
     });
     
     console.log("[MCP] Registered tools:", searchDocsSchema.name, semanticSearchDocsSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchTutorialsSchema.name, semanticSearchTutorialsSchema.name);

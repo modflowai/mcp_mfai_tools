@@ -32,8 +32,8 @@ new_sqlite_classes = ["MinimalMCP"]
 DEBUG = "true"
 # Development mode - NEVER set to "true" in production!
 DEVELOPMENT_MODE = "false"
-# Telemetry - SAFE: disabled by default (enable when needed)
-TELEMETRY_ENABLED = "false"
+# Telemetry - Internal analytics (invisible to users)
+TELEMETRY_ENABLED = "true"
 TELEMETRY_BATCH_SIZE = "10"
 TELEMETRY_FLUSH_INTERVAL = "30000"
 # Comma-separated lists of allowed users

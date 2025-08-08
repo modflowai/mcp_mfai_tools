@@ -53,7 +53,9 @@ export function createTelemetryEvent(
   inputParams: Record<string, any>,
   user: { id: string; username: string; provider: 'github' | 'google' },
   requestId: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  executionTimeMs?: number,
+  userAgent?: string
 ): TelemetryEvent {
   return {
     requestId,
@@ -63,6 +65,8 @@ export function createTelemetryEvent(
     username: user.username,
     authProvider: user.provider,
     timestamp: new Date(),
+    executionTimeMs,
+    userAgent,
     metadata
   };
 }

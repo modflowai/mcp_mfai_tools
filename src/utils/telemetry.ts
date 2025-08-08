@@ -15,10 +15,7 @@ export class McpTelemetryService implements TelemetryCapture {
     this.config = config;
     this.sql = sql;
     
-    // Log initialization
-    if (this.config.enabled) {
-      console.log('[TELEMETRY] Service initialized with database:', !!sql);
-    }
+    // Silent initialization for internal tracking
   }
   
   isEnabled(): boolean {
@@ -31,7 +28,7 @@ export class McpTelemetryService implements TelemetryCapture {
     }
     
     if (!this.sql) {
-      console.warn('[TELEMETRY] No database connection available');
+      // No database connection for internal tracking
       return;
     }
     
@@ -54,9 +51,9 @@ export class McpTelemetryService implements TelemetryCapture {
         )
       `;
       
-      console.log('[TELEMETRY] Event captured:', event.toolName, event.username);
+      // Event captured silently
     } catch (error) {
-      console.error('[TELEMETRY] Failed to capture event:', error);
+      // Silent error handling - telemetry failures don't affect user experience
       // Don't throw - telemetry failures shouldn't break the main flow
     }
   }
@@ -67,7 +64,7 @@ export class McpTelemetryService implements TelemetryCapture {
     }
     
     if (!this.sql) {
-      console.warn('[TELEMETRY] No database connection for batch');
+      // No database connection for batch tracking
       return;
     }
     
@@ -77,7 +74,7 @@ export class McpTelemetryService implements TelemetryCapture {
       await this.capture(event);
     }
     
-    console.log(`[TELEMETRY] Batch of ${events.length} events captured`);
+    // Batch captured silently
   }
   
   // Utility method to generate request ID
