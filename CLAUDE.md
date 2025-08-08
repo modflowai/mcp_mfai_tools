@@ -517,6 +517,39 @@ The development server at `http://localhost:8787` provides:
 - OAuth redirect URLs must match the deployed worker URL: https://mcp-mfai-tools.little-grass-273a.workers.dev/callback
 - KV namespace is already created: `c6668cdb8dfc4f2abf67aab912b3fc27`
 
+## Troubleshooting & Known Issues
+
+### Pagination and Large Files
+
+#### Problem: "Invalid escape string" errors
+- **Symptom**: Large files (especially Jupyter notebooks) fail with PostgreSQL escape string errors
+- **Root Cause**: PostgreSQL's SUBSTRING function interprets escape sequences in JSON content
+- **Solution**: Use SUBSTR instead of SUBSTRING for all pagination queries
+- **Implementation**: See `src/tools/get-file-content.ts` - all pagination now uses SUBSTR
+
+#### Problem: Token limit exceeded
+- **Symptom**: MCP tool response exceeds 25,000 token limit
+- **Solution**: Reduced page size from 70KB to 30KB in `loadFileContent()` function
+- **Result**: Large files like gpr_emulation_hosaki.ipynb (5.3MB) paginate into 179 pages
+
+#### Key Functions for Pagination
+```typescript
+// Check file metadata without loading content
+checkFileMetadata(sql, repository, filepath, primaryTable, primaryColumn)
+
+// Load content with pagination using SUBSTR
+loadFileContent(sql, metadata, page?, force_full?)
+```
+
+### Important SQL Differences
+- **SUBSTRING**: Interprets escape sequences (\n, \t, etc.) - causes errors with JSON
+- **SUBSTR**: Treats content as raw text - safe for all content types
+- **Always use SUBSTR for content extraction from database**
+
+### Deployment Propagation
+- **Wait 30 seconds** after deployment for Cloudflare edge propagation
+- Use `npx wrangler tail mcp-mfai-tools --format pretty` to monitor logs
+
 ## Current Configuration
 
 **GitHub OAuth App:** Configured for production deployment

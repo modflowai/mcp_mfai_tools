@@ -343,6 +343,29 @@ All tools return structured JSON responses with:
 6. **No Truncation**: Full file content retrieval
 7. **Specialized Tools**: Purpose-built for different content types
 
+## 📝 Recent Updates
+
+### January 8, 2025 - Critical Bug Fixes & Improvements
+
+#### ✅ Fixed File Content Pagination
+- **Issue Resolved**: Large files (especially Jupyter notebooks) were failing with "invalid escape string" errors
+- **Solution**: Switched from PostgreSQL SUBSTRING to SUBSTR function for proper handling of JSON/notebook content
+- **Impact**: All file types now load correctly, including complex 5MB+ notebooks
+
+#### ✅ Optimized for Token Limits
+- **Improvement**: Reduced page size from 70KB to 30KB to stay within MCP's 25,000 token limit
+- **Result**: Large files like gpr_emulation_hosaki.ipynb (5.3MB) now properly paginate into 179 manageable pages
+
+#### ✅ Enhanced Pagination System
+- **New Architecture**: Separated metadata checking from content loading for better performance
+- **Benefit**: Prevents memory issues with large files by checking size before loading content
+
+#### ✅ Tested Examples
+- ✅ **PESTPP-IES Documentation**: 147KB file loads in 5 pages
+- ✅ **GPR Emulation Notebook**: 5.3MB Jupyter notebook loads in 179 pages
+- ✅ **All MODFLOW/PEST docs**: Working correctly with pagination
+- ✅ **FloPy/PyEMU modules**: Full support for all code files
+
 ## 📝 License
 
 MIT License - Open source and available for community use
