@@ -302,35 +302,39 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         const length = SAFE_CONTENT_LIMIT;
         
         if (source_query.startsWith('%')) {
-          result = await sql.query(`
+          const query = `
             SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
             FROM ${source_table}
             WHERE file_path LIKE $1
-          `, [source_query]);
+          `;
+          result = await sql.query(query, [source_query]);
         } else {
           const fullPathPattern = `/home/danilopezmella/%/${source_query}`;
-          result = await sql.query(`
+          const query = `
             SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
             FROM ${source_table}
             WHERE file_path = $1 OR file_path LIKE $2
             LIMIT 1
-          `, [source_query, fullPathPattern]);
+          `;
+          result = await sql.query(query, [source_query, fullPathPattern]);
         }
       } else {
         if (source_query.startsWith('%')) {
-          result = await sql.query(`
+          const query = `
             SELECT source_code::text as content
             FROM ${source_table}
             WHERE file_path LIKE $1
-          `, [source_query]);
+          `;
+          result = await sql.query(query, [source_query]);
         } else {
           const fullPathPattern = `/home/danilopezmella/%/${source_query}`;
-          result = await sql.query(`
+          const query = `
             SELECT source_code::text as content
             FROM ${source_table}
             WHERE file_path = $1 OR file_path LIKE $2
             LIMIT 1
-          `, [source_query, fullPathPattern]);
+          `;
+          result = await sql.query(query, [source_query, fullPathPattern]);
         }
       }
     }
