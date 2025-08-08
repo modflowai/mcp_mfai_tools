@@ -299,49 +299,36 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         console.log('[LOAD CONTENT DEBUG] Using pagination with start:', start, 'length:', length);
         console.log('[LOAD CONTENT DEBUG] About to execute SUBSTRING query for pyemu_workflows...');
         
-        // Special handling for gpr_emulation_hosaki.ipynb - skip first character to avoid escape error
-        if (source_query === 'gpr_emulation_hosaki.ipynb') {
-          console.log('[LOAD CONTENT WARNING] Special handling for gpr_emulation_hosaki.ipynb - skipping first character');
+        // Use SUBSTR instead of SUBSTRING to avoid escape string issues
+        try {
+          console.log('[LOAD CONTENT DEBUG] Using SUBSTR query for pyemu_workflows...');
+          result = await sql.query(`
+            SELECT SUBSTR(source_code::text, $1, $2) as content
+            FROM pyemu_workflows
+            WHERE notebook_file = $3
+          `, [start, length, source_query]);
+          console.log('[LOAD CONTENT DEBUG] SUBSTR query successful, result rows:', result?.length);
+        } catch (substrError) {
+          console.log('[LOAD CONTENT DEBUG] SUBSTR failed:', substrError.message);
           
-          // Adjust start position to skip first character that causes "invalid escape string" error
-          const adjustedStart = start === 1 ? 2 : start;
-          const adjustedLength = start === 1 ? length - 1 : length;
-          
-          try {
-            console.log('[LOAD CONTENT DEBUG] Using adjusted SUBSTRING with start:', adjustedStart, 'length:', adjustedLength);
-            result = await sql.query(`
-              SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
-              FROM pyemu_workflows
-              WHERE notebook_file = $3
-            `, [adjustedStart, adjustedLength, source_query]);
-            console.log('[LOAD CONTENT DEBUG] Successfully retrieved content with adjusted positions');
-            
-            // Prepend the missing first character '{' if we're on page 1
-            if (result && result.length > 0 && start === 1) {
-              result[0].content = '{' + result[0].content;
+          // Fallback to skipping first character for gpr_emulation_hosaki.ipynb
+          if (source_query === 'gpr_emulation_hosaki.ipynb' && start === 1) {
+            console.log('[LOAD CONTENT WARNING] Falling back to skip first character workaround');
+            try {
+              result = await sql.query(`
+                SELECT SUBSTR(source_code::text, 2, $1) as content
+                FROM pyemu_workflows
+                WHERE notebook_file = $2
+              `, [length - 1, source_query]);
+              
+              if (result && result.length > 0) {
+                result[0].content = '{' + result[0].content;
+              }
+            } catch (fallbackError) {
+              throw new Error(`File content cannot be retrieved due to database storage issues: ${fallbackError.message}`);
             }
-          } catch (substringError) {
-            console.log('[LOAD CONTENT DEBUG] Adjusted SUBSTRING failed:', substringError.message);
-            throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
-          }
-        } else {
-          // Standard approach for other files
-          try {
-            console.log('[LOAD CONTENT DEBUG] Using standard SUBSTRING query...');
-            result = await sql.query(`
-              SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
-              FROM pyemu_workflows
-              WHERE notebook_file = $3
-            `, [start, length, source_query]);
-            console.log('[LOAD CONTENT DEBUG] Standard query successful, result rows:', result?.length);
-          } catch (substringError) {
-            console.log('[LOAD CONTENT DEBUG] Standard query failed:', substringError.message);
-            
-            // Check if this is an escape string error
-            if (substringError.message && substringError.message.includes('invalid escape string')) {
-              throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
-            }
-            throw substringError;
+          } else {
+            throw substrError;
           }
         }
       } else {
