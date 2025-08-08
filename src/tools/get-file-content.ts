@@ -207,6 +207,15 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
   const { source_table, source_column, source_query, file_size } = metadata;
   const SAFE_CONTENT_LIMIT = 70000;
   
+  console.log('[LOAD CONTENT DEBUG] Starting with:', JSON.stringify({ 
+    source_table, 
+    source_column, 
+    source_query, 
+    file_size,
+    page,
+    force_full
+  }));
+  
   let needsPagination = file_size > SAFE_CONTENT_LIMIT && !force_full;
   let currentPage = 1;
   let totalPages = 1;
@@ -282,21 +291,32 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
         `;
       }
     } else if (source_table === 'pyemu_workflows') {
+      console.log('[LOAD CONTENT DEBUG] Processing pyemu_workflows table...');
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
+        console.log('[LOAD CONTENT DEBUG] Using pagination with start:', start, 'length:', length);
+        console.log('[LOAD CONTENT DEBUG] About to execute SUBSTRING query for pyemu_workflows...');
         // Use query method with proper escaping for JSON content
-        result = await sql.query(`
-          SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
-          FROM pyemu_workflows
-          WHERE notebook_file = $3
-        `, [start, length, source_query]);
+        try {
+          result = await sql.query(`
+            SELECT SUBSTRING(source_code::text FROM $1 FOR $2) as content
+            FROM pyemu_workflows
+            WHERE notebook_file = $3
+          `, [start, length, source_query]);
+          console.log('[LOAD CONTENT DEBUG] SUBSTRING query successful, result rows:', result?.length);
+        } catch (substringError) {
+          console.log('[LOAD CONTENT DEBUG] SUBSTRING query failed:', substringError);
+          throw substringError;
+        }
       } else {
+        console.log('[LOAD CONTENT DEBUG] Loading full content without pagination...');
         result = await sql`
           SELECT source_code::text as content
           FROM pyemu_workflows
           WHERE notebook_file = ${source_query}
         `;
+        console.log('[LOAD CONTENT DEBUG] Full content query successful');
       }
     } else if (source_table === 'flopy_modules' || source_table === 'pyemu_modules') {
       if (needsPagination) {
@@ -392,6 +412,8 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
   try {
     const { repository, filepath, page, force_full = false } = args;
 
+    console.log('[GET FILE DEBUG] Starting getFileContentTool with args:', JSON.stringify({ repository, filepath, page, force_full }));
+
     // Validate inputs
     if (!repository || typeof repository !== 'string' || repository.trim().length === 0) {
       throw new Error('Repository parameter is required and cannot be empty');
@@ -445,7 +467,18 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     console.log(`[GET FILE] Attempting to query table: ${tableName}, column: ${fileColumn}`);
     
     // Step 1: Check file metadata first (no content loading)
+    console.log('[GET FILE DEBUG] About to call checkFileMetadata...');
     const metadata = await checkFileMetadata(sql, repository, filepath, tableName, fileColumn);
+
+    console.log('[GET FILE DEBUG] Metadata result:', metadata ? 'Found' : 'Not found');
+    if (metadata) {
+      console.log('[GET FILE DEBUG] Metadata details:', JSON.stringify({
+        source_table: metadata.source_table,
+        source_query: metadata.source_query,
+        file_size: metadata.file_size,
+        filepath: metadata.filepath
+      }));
+    }
 
     if (!metadata) {
       return {
@@ -459,10 +492,13 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     // Step 2: Load content with pagination support
     let contentResult;
     try {
+      console.log('[GET FILE DEBUG] About to call loadFileContent with metadata...');
       // Add repository to metadata for content loading
       metadata.repository = repository;
       contentResult = await loadFileContent(sql, metadata, page, force_full);
+      console.log('[GET FILE DEBUG] Content loaded successfully, size:', contentResult.actualContentSize);
     } catch (error) {
+      console.log('[GET FILE DEBUG] Error in loadFileContent:', error);
       return {
         content: [{
           type: "text" as const,
