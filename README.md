@@ -63,26 +63,26 @@ This MCP server provides **6 specialized search tools** designed for different u
 
 | Tool | Purpose | Best For | Status |
 |------|---------|----------|---------|
-| **🎓 search_tutorials** | Tutorial/workflow search | Learning materials, step-by-step guides, tutorials | ✅ **FEATURE COMPLETE** |
-| **🧠 search_code** | API/module search | Function signatures, class definitions, troubleshooting | ✅ **WORKING** |
-| **📖 search_docs** | Documentation search | Mathematical theory, conceptual explanations | ✅ **WORKING** |
-| **🤖 semantic_search_tutorials** | Semantic tutorial search | Concept-based tutorial discovery | 🚧 **PHASE 0** |
-| **🔍 semantic_search_docs** | Semantic documentation search | Concept-based theory discovery | ✅ **WORKING** |
-| **📁 get_file_content** | Direct file access | Complete file retrieval by exact path | ✅ **WORKING** |
+| **🎓 search_tutorials** | Tutorial/workflow search | Learning materials, step-by-step guides, workflows | ✅ **WORKING** |
+| **🧠 search_code** | API/module search | Function signatures, class definitions, implementation details | ✅ **WORKING** |
+| **📖 search_docs** | Documentation search | Mathematical theory, conceptual explanations, reference material | ✅ **WORKING** |
+| **🤖 semantic_search_tutorials** | Semantic tutorial search | Concept-based tutorial discovery using embeddings | ✅ **WORKING** |
+| **🔍 semantic_search_docs** | Semantic documentation search | Concept-based theory discovery using embeddings | ✅ **WORKING** |
+| **📁 get_file_content** | Direct file access | Complete file retrieval by exact path with pagination | ✅ **WORKING** |
 
 ### Architecture: Specialized Tools
 
-**Content-Focused Search (Phase 2)**:
+**Content-Focused Search**:
 - **search_tutorials**: Tutorials and workflows ONLY (flopy_workflows, pyemu_workflows tables)
 - **search_code**: API and modules ONLY (flopy_modules, pyemu_modules tables)  
 - **search_docs**: Theory and references ONLY (repository_files table)
 
 **Semantic Search Tools**:
-- **semantic_search_docs**: Cross-repository semantic search
-- **semantic_search_tutorials**: Semantic similarity for tutorials (needs embedding regeneration)
+- **semantic_search_docs**: Cross-repository semantic search with OpenAI embeddings
+- **semantic_search_tutorials**: Semantic similarity for tutorials using vector search
 
 **Utility Tools**:
-- **get_file_content**: Direct file retrieval by exact path
+- **get_file_content**: Direct file retrieval with automatic pagination for large files
 
 ### Detailed Tool Documentation
 
@@ -148,101 +148,168 @@ This MCP server provides **6 specialized search tools** designed for different u
 | `usage` | user_scenarios arrays | Examples/tutorials | "pumping well example" |
 | `concept` | related_concepts arrays | Theory/background | "FOSM uncertainty" |
 
-**Example Usage**:
+**Real Example**:
 ```typescript
-// Simple search
-mcp__mfaitools__search_code({
-  query: "WEL package implementation"
+// User query: "control data section"
+mcp__mfaitools__search_docs({
+  query: "control data section"
 })
 
-// Advanced troubleshooting
+// Actual response preview:
+{
+  "results": [
+    {
+      "filepath": "pestman1/The_PEST_Control_File_part05.md",
+      "title": "PEST Control File: Parameter Groups and Data Specifications", 
+      "relevance": 1.000,
+      "repository": "pest",
+      "snippet": "**[data]**\" **[section]** of the PEST **[control]** file..."
+    }
+  ],
+  "total_results": 9,
+  "search_metadata": {
+    "method_used": "text",
+    "average_relevance": 0.565
+  }
+}
+```
+
+**Advanced Code Search**:
+```typescript
 mcp__mfaitools__search_code({
-  query: "SMS convergence failed debugging",
-  search_type: "error",
-  include_errors: true,
+  query: "WEL package constructor",
+  repository: "flopy",
   include_scenarios: true,
-  include_snippet: true,
-  package_code: "SMS",
-  limit: 5
-})
-
-// API documentation search with field control
-mcp__mfaitools__search_code({
-  query: "parameter uncertainty analysis",
-  repository: "pyemu", 
-  search_type: "concept",
-  search_arrays: true,
-  search_purpose: true,
-  include_concepts: true,
-  include_pest: true
+  include_snippet: true
 })
 ```
 
-### 2. 📄 text_search_repository - Full-Text Search
-**Comprehensive text search with boolean parsing and wildcard support.**
+### 2. 🎓 search_tutorials - Tutorial & Workflow Search
+**Find tutorials, workflows, and practical implementations with advanced filtering.**
 
-**Purpose**: Full-text search across all repositories with acronym expansion and boolean operators.
+**Purpose**: Search for step-by-step guides, working examples, and best practices.
 
 **Key Features**:
-- **Boolean parsing fix** for MCP string parameters
-- **Acronym expansion** (WEL → Well Package) 
-- **Wildcard support** (* for pattern matching)
-- **ts_headline snippets** with highlighting
-- **Hybrid search strategy** (docs + modules + workflows)
+- **Advanced filtering** by model type, packages, complexity level
+- **Array search** within use cases, prerequisites, and implementation tips
+- **Complete working examples** with code and explanations
+- **Complexity indicators** (beginner/intermediate/advanced)
+- **Package usage lists** showing required MODFLOW packages
+- **Enhanced snippet highlighting** with configurable display options
 
 **Parameters**:
 ```typescript
 {
   query: string,                    // Required: search terms
-  repository?: string,              // Optional: specific repository
-  file_type?: string,              // Filter by file extension
-  limit?: number,                  // 1-50, default: 15
-  include_content?: boolean        // Show content snippets (default: true)
+  repository?: 'flopy' | 'pyemu',  // Optional: specific repository
+  limit?: number,                  // 1-50, default: 10
+  complexity?: 'beginner' | 'intermediate' | 'advanced',
+  packages?: string[],             // Filter by packages used
+  workflow_type?: string,          // Filter by workflow type (PyEMU)
+  include_tips?: boolean,          // Show implementation tips
+  include_use_cases?: boolean      // Show use case examples
 }
 ```
 
-### 3. 🎯 semantic_search_repository - Vector Search
-**AI-powered semantic search using OpenAI embeddings.**
+### 3. 📖 search_docs - Documentation Search
+**Find theoretical foundations, mathematical formulations, and reference material.**
 
-**Purpose**: Find conceptually similar content even when exact words don't match.
+**Purpose**: Search comprehensive documentation for concepts, theory, and reference guides.
+
+**Key Features**:
+- **Optimized for theory** with mathematical equations and scientific principles
+- **Automatic acronym expansion** for better coverage
+- **Key concept extraction** from documentation
+- **Cross-repository search** across all documentation
+- **Focused results** with relevance ranking
+
+**Parameters**:
+```typescript
+{
+  query: string,                    // Required: search terms (optimal: 1-3 words)
+  repository?: string,              // Optional: specific repository
+  limit?: number,                   // 1-3, default: 1
+  file_type?: string               // Filter by file extension
+}
+```
+
+### 4. 🔍 semantic_search_docs - Semantic Documentation Search
+**AI-powered conceptual search using OpenAI embeddings.**
+
+**Purpose**: Find conceptually related documentation even when exact terms don't match.
 
 **Key Features**:
 - **Vector similarity search** using OpenAI embeddings
-- **Conceptual matching** (finds "pumping wells" for "water extraction")
-- **Always shows content** (no include_content parameter needed)
-- **Smart for concept discovery**
+- **Conceptual matching** beyond keyword matching
+- **Cross-repository discovery** of related concepts
+- **Semantic understanding** of groundwater modeling terminology
 
 **Parameters**:
 ```typescript
 {
   query: string,                    // Required: natural language query
   repository?: string,              // Optional: specific repository  
-  limit?: number,                  // 1-50, default: 10
-  filter?: {                       // Optional metadata filters
-    model_family?: string,
-    package_code?: string,
-    category?: string
-  }
+  limit?: number                    // 1-20, default: 10
 }
 ```
 
-### 4. 📁 get_file_content - Direct File Access
-**Retrieve complete file content by exact path.**
+### 5. 🤖 semantic_search_tutorials - Semantic Tutorial Search
+**Find tutorials using concept-based similarity search.**
+
+**Purpose**: Discover tutorials by meaning and conceptual similarity rather than keywords.
+
+**Key Features**:
+- **Embedding-based search** for conceptual matching
+- **Tutorial-specific optimization** for workflow discovery
+- **Similarity scoring** for relevance assessment
+- **Cross-workflow discovery** of related techniques
+
+**Parameters**:
+```typescript
+{
+  query: string,                    // Required: natural language description
+  limit?: number,                   // 1-20, default: 5
+  similarity_threshold?: number    // 0-1, default: 0.7
+}
+```
+
+### 6. 📁 get_file_content - Direct File Access
+**Retrieve complete file content by exact path with automatic pagination.**
 
 **Purpose**: Get the full content of a specific file when you know its exact location.
 
 **Key Features**:
-- **No truncation** (returns complete files)
+- **Automatic pagination** for large files (70KB+ split into pages)
+- **Complete file content** without truncation
 - **Multi-table routing** (automatically finds file in correct table)
-- **Rich metadata** (title, summary, statistics)
-- **GitHub URL integration**
+- **Rich metadata** (title, summary, key concepts, statistics)
+- **GitHub URL integration** for source code files
+- **Handles all file types** (documentation, code, workflows)
 
 **Parameters**:
 ```typescript
 {
   repository: string,               // Required: repository name
-  filepath: string                 // Required: exact file path
+  filepath: string,                 // Required: exact file path
+  page?: number,                    // Optional: page number for large files
+  force_full?: boolean             // Optional: force full content (use with caution)
 }
+```
+
+**Example Usage**:
+```typescript
+// Get first page of large file
+mcp__mfaitools__get_file_content({
+  repository: "pest",
+  filepath: "pestman1/The_PEST_Control_File_part05.md",
+  page: 1
+})
+
+// Get complete small file
+mcp__mfaitools__get_file_content({
+  repository: "flopy", 
+  filepath: "flopy/mf6/modflow/mfgwfwel.py"
+})
 ```
 
 ## 🎛️ Advanced User Controls
@@ -574,31 +641,45 @@ curl https://your-worker-name.your-subdomain.workers.dev/
 
 ## 📊 Recent Improvements & Version History
 
-### Latest Version: Advanced User Controls (2025)
+### Latest Version: Production-Ready with Full Authentication (2025)
 
-#### 🎛️ Complete Feature Set
-- **5 search strategies** with user-controlled targeting
-- **Rich metadata arrays** with comprehensive display options
-- **Field-specific search** for docstrings, purpose, arrays, and source code
-- **Advanced filters** by package code, model family, and category
-- **Boolean parameter parsing** for MCP compatibility
-- **Acronym expansion** with centralized mappings
-- **GitHub URL integration** for all code results
-- **Highlighted snippets** with ts_headline
-- **Comprehensive debugging** with detailed execution logs
+#### ✅ Recently Completed Features
+- **🔐 OAuth Authentication Fixed** - GitHub and Google sign-in working perfectly
+- **🎨 Glassmorphism Login UI** - Beautiful provider selection with animated backgrounds  
+- **👥 Complete User Management** - 15 GitHub users + 11 Google users in production allowlist
+- **🔧 CORS Issues Resolved** - Proper headers for authenticated MCP connections
+- **🔍 Query Parsing Improved** - Fixed plainto_tsquery for simple queries, to_tsquery for advanced
+- **📄 Pagination Feature** - Automatic pagination for large files (70KB+) with page navigation
+
+#### 🎛️ Complete Tool Set
+- **6 specialized search tools** covering tutorials, code, documentation, and semantic search
+- **Rich metadata display** with user-controlled arrays and snippets
+- **Advanced filtering** by package code, model family, complexity, and repository
+- **Automatic acronym expansion** with centralized MODFLOW/PEST mappings
+- **GitHub URL integration** for direct access to source code
+- **Comprehensive error handling** with detailed debugging information
 
 #### 🔧 Technical Improvements
-- **MCP compatibility** for string-to-boolean conversion
-- **Performance optimization** with targeted SQL queries
-- **User-controlled output** - no hardcoded assumptions
-- **Clean architecture** with modular tool design
-- **Production-ready deployment** on Cloudflare Workers Edge
+- **Production deployment** on Cloudflare Workers Edge with global performance
+- **Robust authentication flow** with encrypted session management
+- **Database optimization** with proper plainto_tsquery usage for reliability
+- **Clean modular architecture** with separation of concerns
+- **Comprehensive logging** for debugging and monitoring
 
-#### 🛠️ Tool Specialization
-- **search_code**: Advanced multi-strategy API/module search
-- **text_search_repository**: Full-text with boolean parsing and wildcards
-- **semantic_search_repository**: Vector-based concept search
-- **get_file_content**: Complete file retrieval without truncation
+#### 🛠️ Tool Specialization Status
+- **search_tutorials**: ✅ Working - Tutorial and workflow discovery
+- **search_code**: ✅ Working - API and module documentation
+- **search_docs**: ✅ Working - Theory and reference material
+- **semantic_search_tutorials**: ✅ Working - Concept-based tutorial discovery
+- **semantic_search_docs**: ✅ Working - Semantic documentation search
+- **get_file_content**: ✅ Working - Complete file retrieval with pagination
+
+#### 🚀 Deployment Status
+- **Live Production URL**: https://mcp-mfai-tools.little-grass-273a.workers.dev
+- **Authentication**: Fully functional OAuth with GitHub and Google
+- **User Access**: Controlled allowlist with 26 authorized users
+- **Performance**: Edge deployment with global CDN
+- **Reliability**: All tools tested and working in production
 
 ### Design Philosophy
 

@@ -26,7 +26,7 @@ export const semanticSearchTutorialsSchema = {
       },
       similarity_threshold: {
         type: 'number',
-        description: 'Minimum similarity score (0-1, default: 0.7)',
+        description: 'Minimum similarity score (0-1, default: 0)',
       },
     },
     required: ['query'],
@@ -62,7 +62,7 @@ export async function semanticSearchTutorials(args: any, sql: NeonQueryFunction<
     const { 
       query, 
       limit = 5,
-      similarity_threshold = 0.7,
+      similarity_threshold = 0,
     } = args;
 
     // Input validation

@@ -92,6 +92,16 @@ async function developmentHandler(request: Request, env: any, ctx: any): Promise
   return new Response('Not Found', { status: 404 });
 }
 
+// Create the OAuth provider
+const oauthProvider = new OAuthProvider({
+  apiRoute: "/mcp",
+  apiHandler: MinimalMCP.serve("/mcp", { binding: "MCP_OBJECT" }) as any,
+  defaultHandler: MultiProviderHandler as any,
+  authorizeEndpoint: "/authorize",
+  tokenEndpoint: "/token",
+  clientRegistrationEndpoint: "/register",
+});
+
 // Main handler - chooses between OAuth and development mode
 export default {
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
@@ -100,16 +110,7 @@ export default {
       return await developmentHandler(request, env, ctx);
     }
     
-    // Production mode - use OAuth provider
-    const oauthProvider = new OAuthProvider({
-      apiRoute: "/mcp",
-      apiHandler: MinimalMCP.serve("/mcp", { binding: "MCP_OBJECT" }) as any,
-      defaultHandler: MultiProviderHandler as any,
-      authorizeEndpoint: "/authorize",
-      tokenEndpoint: "/token",
-      clientRegistrationEndpoint: "/register",
-    });
-    
+    // Production mode - use OAuth provider (exactly like working reference)
     return await oauthProvider.fetch(request, env, ctx);
   }
 };

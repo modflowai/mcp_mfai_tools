@@ -20,74 +20,82 @@ This MCP server bridges the gap between AI assistants and the extensive MODFLOW/
 ### Specialized Search Tools
 Each tool is optimized for specific content types, ensuring relevant and accurate results:
 
-1. **Tutorial & Workflow Search** (`search_examples`) - Advanced filtering and array search
-2. **Semantic Tutorial Search** (`semantic_search_examples`) - Concept-based tutorial discovery
+1. **Tutorial & Workflow Search** (`search_tutorials`) - Advanced filtering and array search
+2. **Semantic Tutorial Search** (`semantic_search_tutorials`) - Concept-based tutorial discovery using embeddings
 3. **API & Code Search** (`search_code`) - Multi-strategy search with rich metadata
-4. **Theory & Documentation Search** (`search_documentation`) - Focused theory search
-5. **Full-Text Search** (`text_search_repository`) - Cross-repository keyword search
-6. **Direct File Retrieval** (`get_file_content`) - Complete file access
+4. **Theory & Documentation Search** (`search_docs`) - Focused theory search with automatic pagination
+5. **Semantic Documentation Search** (`semantic_search_docs`) - Concept-based documentation discovery
+6. **Direct File Retrieval** (`get_file_content`) - Complete file access with pagination
 
 ## 📚 Available Tools
 
-### 1. search_examples
+### 1. search_tutorials
 **Purpose**: Find tutorials, workflows, and practical implementations with advanced filtering
 
 **Features**:
-- **Feature Complete**: Advanced filtering by model type, packages, complexity
+- Advanced filtering by model type, packages, complexity
 - Returns complete working examples with code
 - Array search within use cases, prerequisites, and implementation tips
 - Includes complexity levels (beginner/intermediate/advanced)
 - Shows packages used and best use cases
 - Enhanced snippet highlighting with configurable display options
 
-**Example Query & Response**:
-```json
-Query: "MAW multi-aquifer well"
+**Real Example**:
+```typescript
+// Query: "pumping well example"
+mcp__mfaitools__search_tutorials({
+  query: "pumping well example",
+  limit: 2
+})
 
-Response: {
-  "results": [{
-    "filepath": "scripts/ex-gwf-maw-p02.py",
-    "github_url": "https://github.com/MODFLOW-ORG/modflow6-examples/blob/develop/scripts/ex-gwf-maw-p02.py",
-    "title": "Multi-Aquifer Well Problem, Flowing Well Option",
-    "complexity": "intermediate",
-    "packages_used": ["DIS", "IC", "MAW", "NPF", "OC", "STO"],
-    "best_use_cases": [
-      "Municipal supply well modeling",
-      "Learning MODFLOW 6 modeling workflow"
-    ]
-  }],
-  "search_metadata": {
-    "method_used": "hybrid",
-    "acronyms_detected": {"MAW": "Multi-Aquifer Well"}
-  }
+// Actual Response:
+{
+  "results": [
+    {
+      "title": "Hani Problem",
+      "filepath": "scripts/ex-gwf-hani.py", 
+      "complexity": "beginner",
+      "packages": ["CHD", "DIS", "IC", "NPF", "OC"],
+      "description": "This problem simulates groundwater flow to a pumping well under horizontally anisotropic groundwater flow conditions."
+    }
+  ],
+  "total_results": 2
 }
 ```
 
-### 2. semantic_search_examples
-**Purpose**: Find tutorials using concept-based similarity search
+### 2. semantic_search_tutorials
+**Purpose**: Find tutorials using concept-based similarity search with OpenAI embeddings
 
 **Features**:
-- **Phase 0**: Minimal semantic search implementation
-- Uses OpenAI embeddings for conceptual matching
-- Finds tutorials by meaning rather than keywords
+- Uses OpenAI embeddings (text-embedding-ada-002) for conceptual matching
+- Finds tutorials by meaning and concepts rather than exact keywords
 - Returns similarity scores for relevance assessment
-- Designed for debugging and analysis of semantic search behavior
+- Default similarity threshold: 0 (shows all results)
+- Cross-repository search across FloPy and PyEMU tutorials
 
-**Example Query & Response**:
-```json
-Query: "parameter uncertainty analysis"
+**Real Example**:
+```typescript
+// Query: "PEST parameter estimation example"
+mcp__mfaitools__semantic_search_tutorials({
+  query: "PEST parameter estimation example",
+  limit: 2
+})
 
-Response: {
-  "results": [{
-    "title": "First-Order Second-Moment Analysis",
-    "similarity": 0.75,
-    "workflow_type": "uncertainty_analysis",
-    "complexity": "intermediate",
-    "description": "Linear uncertainty analysis for forecasts..."
-  }],
+// Actual Response:
+{
+  "results": [
+    {
+      "title": "Error Variance Example: Henry",
+      "filepath": "errvarexample_henry.ipynb",
+      "complexity": "beginner", 
+      "type": "error_variance",
+      "packages": ["parameter", "pest"],
+      "similarity": 0.025
+    }
+  ],
   "search_metadata": {
-    "similarity_threshold": 0.7,
-    "embedding_model": "text-embedding-ada-002"
+    "average_similarity": 0.023,
+    "threshold": 0
   }
 }
 ```
