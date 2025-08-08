@@ -292,6 +292,14 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
       }
     } else if (source_table === 'pyemu_workflows') {
       console.log('[LOAD CONTENT DEBUG] Processing pyemu_workflows table...');
+      
+      // Special handling for known problematic files
+      if (source_query === 'gpr_emulation_hosaki.ipynb') {
+        console.log('[LOAD CONTENT WARNING] Known problematic file detected: gpr_emulation_hosaki.ipynb');
+        console.log('[LOAD CONTENT WARNING] This file contains invalid escape sequences that prevent retrieval');
+        throw new Error('File content contains invalid escape sequences and cannot be retrieved. This is a known issue with gpr_emulation_hosaki.ipynb in the database.');
+      }
+      
       if (needsPagination) {
         const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
         const length = SAFE_CONTENT_LIMIT;
@@ -307,16 +315,29 @@ async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: a
           console.log('[LOAD CONTENT DEBUG] SUBSTRING query successful, result rows:', result?.length);
         } catch (substringError) {
           console.log('[LOAD CONTENT DEBUG] SUBSTRING query failed:', substringError);
+          // Check if this is an escape string error
+          if (substringError.message && substringError.message.includes('invalid escape string')) {
+            throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
+          }
           throw substringError;
         }
       } else {
         console.log('[LOAD CONTENT DEBUG] Loading full content without pagination...');
-        result = await sql`
-          SELECT source_code::text as content
-          FROM pyemu_workflows
-          WHERE notebook_file = ${source_query}
-        `;
-        console.log('[LOAD CONTENT DEBUG] Full content query successful');
+        try {
+          result = await sql`
+            SELECT source_code::text as content
+            FROM pyemu_workflows
+            WHERE notebook_file = ${source_query}
+          `;
+          console.log('[LOAD CONTENT DEBUG] Full content query successful');
+        } catch (fullContentError) {
+          console.log('[LOAD CONTENT DEBUG] Full content query failed:', fullContentError);
+          // Check if this is an escape string error
+          if (fullContentError.message && fullContentError.message.includes('invalid escape string')) {
+            throw new Error(`File content contains invalid escape sequences and cannot be retrieved. This appears to be a data issue in the database for file: ${source_query}`);
+          }
+          throw fullContentError;
+        }
       }
     } else if (source_table === 'flopy_modules' || source_table === 'pyemu_modules') {
       if (needsPagination) {
