@@ -13,8 +13,8 @@ interface FileAnalysis {
   purpose?: string;
 }
 
-// Try multiple search strategies to find the file
-async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>, repository: string, filepath: string, primaryTable: string, primaryColumn: string) {
+// Check file size and metadata without loading content (pagination-aware)
+async function checkFileMetadata(sql: NeonQueryFunction<false, false>, repository: string, filepath: string, primaryTable: string, primaryColumn: string) {
   const strategies = [];
   
   if (repository === 'flopy' || repository === 'pyemu') {
@@ -55,38 +55,42 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
     strategies.push({ table: 'repository_files', column: 'filepath', query: filepath });
   }
   
-  // Execute strategies in order until we find a result
+  // Execute strategies in order until we find a result (metadata only)
   for (const strategy of strategies) {
-    console.log(`[GET FILE] Trying ${strategy.table}.${strategy.column} with query: ${strategy.query}`);
+    console.log(`[GET FILE] Checking metadata in ${strategy.table}.${strategy.column} with query: ${strategy.query}`);
     
     try {
       let result;
       
       if (strategy.table === 'repository_files') {
         if (strategy.query.startsWith('%')) {
-          // Use LIKE for partial matches
+          // Use LIKE for partial matches - metadata only
           result = await sql`
             SELECT 
-              content::text as content,
               analysis,
               filepath,
               file_type,
               created_at,
-              length(content) as file_size
+              length(content) as file_size,
+              '${strategy.table}' as source_table,
+              '${strategy.column}' as source_column,
+              '${strategy.query}' as source_query
             FROM repository_files
             WHERE repo_name = ${repository}
               AND filepath LIKE ${strategy.query}
           `;
         } else {
-          // Exact match
+          // Exact match - metadata only
           result = await sql`
             SELECT 
-              content::text as content,
               analysis,
               filepath,
               file_type,
               created_at,
-              length(content) as file_size
+              length(content) as file_size,
+              '${strategy.table}' as source_table,
+              '${strategy.column}' as source_column,
+              '${strategy.query}' as source_query
             FROM repository_files
             WHERE repo_name = ${repository}
               AND filepath = ${strategy.query}
@@ -95,7 +99,6 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
       } else if (strategy.table === 'flopy_workflows') {
         result = await sql`
           SELECT 
-            source_code::text as content,
             description as analysis,
             tutorial_file as filepath,
             'workflow' as file_type,
@@ -106,14 +109,16 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
             packages_used,
             workflow_purpose,
             best_use_cases,
-            title
+            title,
+            '${strategy.table}' as source_table,
+            '${strategy.column}' as source_column,
+            '${strategy.query}' as source_query
           FROM flopy_workflows
           WHERE tutorial_file = ${strategy.query}
         `;
       } else if (strategy.table === 'pyemu_workflows') {
         result = await sql`
           SELECT 
-            source_code::text as content,
             description as analysis,
             notebook_file as filepath,
             'workflow' as file_type,
@@ -124,16 +129,18 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
             pyemu_modules as packages_used,
             workflow_purpose,
             common_applications as best_use_cases,
-            title
+            title,
+            '${strategy.table}' as source_table,
+            '${strategy.column}' as source_column,
+            '${strategy.query}' as source_query
           FROM pyemu_workflows
           WHERE notebook_file = ${strategy.query}
         `;
       } else if (strategy.table === 'flopy_modules' || strategy.table === 'pyemu_modules') {
         if (strategy.query.startsWith('%')) {
-          // Use LIKE for partial matches
+          // Use LIKE for partial matches - metadata only
           result = await sql.query(`
             SELECT 
-              source_code::text as content,
               module_docstring as analysis,
               CASE 
                 WHEN file_path LIKE '/home/danilopezmella/%'
@@ -145,16 +152,18 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
               length(source_code) as file_size,
               ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
               ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
-              semantic_purpose
+              semantic_purpose,
+              '${strategy.table}' as source_table,
+              '${strategy.column}' as source_column,
+              $2 as source_query
             FROM ${strategy.table}
             WHERE file_path LIKE $1
-          `, [strategy.query]);
+          `, [strategy.query, strategy.query]);
         } else {
-          // For exact match, also try with the full path prefix pattern
+          // For exact match, also try with the full path prefix pattern - metadata only
           const fullPathPattern = `/home/danilopezmella/%/${strategy.query}`;
           result = await sql.query(`
             SELECT 
-              source_code::text as content,
               module_docstring as analysis,
               CASE 
                 WHEN file_path LIKE '/home/danilopezmella/%'
@@ -166,24 +175,178 @@ async function tryMultipleSearchStrategies(sql: NeonQueryFunction<false, false>,
               length(source_code) as file_size,
               ${strategy.table === 'flopy_modules' ? 'package_code' : 'NULL as package_code'},
               ${strategy.table === 'flopy_modules' ? 'model_family' : 'category as model_family'},
-              semantic_purpose
+              semantic_purpose,
+              '${strategy.table}' as source_table,
+              '${strategy.column}' as source_column,
+              $3 as source_query
             FROM ${strategy.table}
             WHERE file_path = $1 OR file_path LIKE $2
-          `, [strategy.query, fullPathPattern]);
+          `, [strategy.query, fullPathPattern, strategy.query]);
         }
       }
       
       if (result && result.length > 0) {
-        console.log(`[GET FILE] Found file in ${strategy.table}.${strategy.column}`);
-        return result;
+        console.log(`[GET FILE] Found file metadata in ${strategy.table}.${strategy.column}, size: ${result[0].file_size} characters`);
+        return result[0]; // Return first match with metadata
       }
     } catch (error) {
-      console.log(`[GET FILE] Error querying ${strategy.table}: ${error}`);
+      console.log(`[GET FILE] Error querying ${strategy.table} metadata: ${error}`);
       continue;
     }
   }
   
   return null;
+}
+
+// Load content with pagination support
+async function loadFileContent(sql: NeonQueryFunction<false, false>, metadata: any, page?: number, force_full?: boolean) {
+  const { source_table, source_column, source_query, file_size } = metadata;
+  const SAFE_CONTENT_LIMIT = 70000;
+  
+  let needsPagination = file_size > SAFE_CONTENT_LIMIT && !force_full;
+  let currentPage = 1;
+  let totalPages = 1;
+  
+  if (needsPagination) {
+    totalPages = Math.ceil(file_size / SAFE_CONTENT_LIMIT);
+    currentPage = page || 1;
+    
+    if (currentPage < 1 || currentPage > totalPages) {
+      throw new Error(`Invalid page number. File has ${totalPages} pages. Please specify a page between 1 and ${totalPages}.`);
+    }
+  }
+  
+  console.log(`[GET FILE] Loading content from ${source_table}, pagination: ${needsPagination}, page: ${currentPage}/${totalPages}`);
+  
+  try {
+    let result;
+    
+    if (source_table === 'repository_files') {
+      if (needsPagination) {
+        // Load specific page using SUBSTRING
+        const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1; // PostgreSQL SUBSTRING is 1-indexed
+        const length = SAFE_CONTENT_LIMIT;
+        
+        if (source_query.startsWith('%')) {
+          result = await sql`
+            SELECT SUBSTRING(content::text FROM ${start} FOR ${length}) as content
+            FROM repository_files
+            WHERE repo_name = ${metadata.repository || 'unknown'}
+              AND filepath LIKE ${source_query}
+          `;
+        } else {
+          result = await sql`
+            SELECT SUBSTRING(content::text FROM ${start} FOR ${length}) as content
+            FROM repository_files
+            WHERE repo_name = ${metadata.repository || 'unknown'}
+              AND filepath = ${source_query}
+          `;
+        }
+      } else {
+        // Load full content
+        if (source_query.startsWith('%')) {
+          result = await sql`
+            SELECT content::text as content
+            FROM repository_files
+            WHERE repo_name = ${metadata.repository || 'unknown'}
+              AND filepath LIKE ${source_query}
+          `;
+        } else {
+          result = await sql`
+            SELECT content::text as content
+            FROM repository_files
+            WHERE repo_name = ${metadata.repository || 'unknown'}
+              AND filepath = ${source_query}
+          `;
+        }
+      }
+    } else if (source_table === 'flopy_workflows') {
+      if (needsPagination) {
+        const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
+        const length = SAFE_CONTENT_LIMIT;
+        result = await sql`
+          SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+          FROM flopy_workflows
+          WHERE tutorial_file = ${source_query}
+        `;
+      } else {
+        result = await sql`
+          SELECT source_code::text as content
+          FROM flopy_workflows
+          WHERE tutorial_file = ${source_query}
+        `;
+      }
+    } else if (source_table === 'pyemu_workflows') {
+      if (needsPagination) {
+        const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
+        const length = SAFE_CONTENT_LIMIT;
+        result = await sql`
+          SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+          FROM pyemu_workflows
+          WHERE notebook_file = ${source_query}
+        `;
+      } else {
+        result = await sql`
+          SELECT source_code::text as content
+          FROM pyemu_workflows
+          WHERE notebook_file = ${source_query}
+        `;
+      }
+    } else if (source_table === 'flopy_modules' || source_table === 'pyemu_modules') {
+      if (needsPagination) {
+        const start = (currentPage - 1) * SAFE_CONTENT_LIMIT + 1;
+        const length = SAFE_CONTENT_LIMIT;
+        
+        if (source_query.startsWith('%')) {
+          result = await sql.query(`
+            SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+            FROM ${source_table}
+            WHERE file_path LIKE $1
+          `, [source_query]);
+        } else {
+          const fullPathPattern = `/home/danilopezmella/%/${source_query}`;
+          result = await sql.query(`
+            SELECT SUBSTRING(source_code::text FROM ${start} FOR ${length}) as content
+            FROM ${source_table}
+            WHERE file_path = $1 OR file_path LIKE $2
+            LIMIT 1
+          `, [source_query, fullPathPattern]);
+        }
+      } else {
+        if (source_query.startsWith('%')) {
+          result = await sql.query(`
+            SELECT source_code::text as content
+            FROM ${source_table}
+            WHERE file_path LIKE $1
+          `, [source_query]);
+        } else {
+          const fullPathPattern = `/home/danilopezmella/%/${source_query}`;
+          result = await sql.query(`
+            SELECT source_code::text as content
+            FROM ${source_table}
+            WHERE file_path = $1 OR file_path LIKE $2
+            LIMIT 1
+          `, [source_query, fullPathPattern]);
+        }
+      }
+    }
+    
+    if (!result || result.length === 0 || !result[0].content) {
+      throw new Error('Content not found or empty');
+    }
+    
+    return {
+      content: result[0].content,
+      needsPagination,
+      currentPage,
+      totalPages,
+      actualContentSize: result[0].content.length
+    };
+    
+  } catch (error) {
+    console.log(`[GET FILE] Error loading content: ${error}`);
+    throw error;
+  }
 }
 
 // Tool schema definition
@@ -271,10 +434,10 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     
     console.log(`[GET FILE] Attempting to query table: ${tableName}, column: ${fileColumn}`);
     
-    // Try multiple search strategies with fallback
-    result = await tryMultipleSearchStrategies(sql, repository, filepath, tableName, fileColumn);
+    // Step 1: Check file metadata first (no content loading)
+    const metadata = await checkFileMetadata(sql, repository, filepath, tableName, fileColumn);
 
-    if (!result || result.length === 0) {
+    if (!metadata) {
       return {
         content: [{
           type: "text" as const,
@@ -283,35 +446,29 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
       };
     }
 
-    const file = result[0];
-    
-    // Handle pagination for large files
-    const SAFE_CONTENT_LIMIT = 70000; // Safe limit to avoid token issues
-    const fileSize = file.file_size || file.content?.length || 0;
-    const needsPagination = fileSize > SAFE_CONTENT_LIMIT && !force_full;
-    
-    let currentPage = 1;
-    let totalPages = 1;
-    
-    if (needsPagination) {
-      totalPages = Math.ceil(fileSize / SAFE_CONTENT_LIMIT);
-      currentPage = page || 1;
-      
-      // Validate page number
-      if (currentPage < 1 || currentPage > totalPages) {
-        return {
-          content: [{
-            type: "text" as const,
-            text: `Invalid page number. File has ${totalPages} pages. Please specify a page between 1 and ${totalPages}.`
-          }]
-        };
-      }
-      
-      // Extract the requested page
-      const start = (currentPage - 1) * SAFE_CONTENT_LIMIT;
-      const end = Math.min(start + SAFE_CONTENT_LIMIT, fileSize);
-      file.content = file.content?.substring(start, end);
+    // Step 2: Load content with pagination support
+    let contentResult;
+    try {
+      // Add repository to metadata for content loading
+      metadata.repository = repository;
+      contentResult = await loadFileContent(sql, metadata, page, force_full);
+    } catch (error) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Error loading file content: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
     }
+
+    // Combine metadata and content
+    const file = {
+      ...metadata,
+      content: contentResult.content,
+      file_size: metadata.file_size
+    };
+    
+    const { needsPagination, currentPage, totalPages, actualContentSize } = contentResult;
     
     // Parse analysis
     let analysis: FileAnalysis = {};
@@ -345,7 +502,7 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     
     // Add pagination notice if applicable
     if (needsPagination) {
-      outputText += `📄 **Large file notice:** This file is ${fileSize.toLocaleString()} characters. Showing part ${currentPage} of ${totalPages}.\n`;
+      outputText += `📄 **Large file notice:** This file is ${file.file_size.toLocaleString()} characters. Showing part ${currentPage} of ${totalPages} (${actualContentSize.toLocaleString()} characters loaded).\n`;
       if (currentPage < totalPages) {
         outputText += `• **Next part:** \`get_file_content(repository="${repository}", filepath="${filepath}", page=${currentPage + 1})\`\n`;
       }
@@ -358,7 +515,7 @@ export async function getFileContentTool(args: any, sql: NeonQueryFunction<false
     outputText += `**Repository:** ${repository}\n`;
     outputText += `**File:** ${filename}\n`;
     outputText += `**Type:** ${file.file_type || extension || 'unknown'}\n`;
-    outputText += `**Size:** ${fileSize.toLocaleString()} characters\n`;
+    outputText += `**Size:** ${file.file_size.toLocaleString()} characters\n`;
     if (file.created_at) {
       outputText += `**Created:** ${new Date(file.created_at).toISOString()}\n`;
     }
