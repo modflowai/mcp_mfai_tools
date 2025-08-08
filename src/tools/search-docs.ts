@@ -113,8 +113,14 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
     const isDocRepo = repository && docRepos.includes(repository);
     const searchAllRepos = !repository;
 
-    // Prepare search query - convert to PostgreSQL full-text search format  
+    // Prepare search query - use plainto_tsquery for simple queries, to_tsquery for advanced
     let searchTerm = query.trim();
+    let useAdvancedQuery = false;
+    
+    // Check if this is an advanced query that needs to_tsquery
+    const hasAdvancedOperators = searchTerm.includes('&') || searchTerm.includes('|') || 
+                                searchTerm.includes('!') || searchTerm.includes('*') || 
+                                searchTerm.includes('"');
     
     // Expand acronyms in the search query
     const expandedTerms: string[] = [];
@@ -126,31 +132,32 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
       if ((acronymMappings as any)[upperWord]) {
         const mapping = (acronymMappings as any)[upperWord];
         console.log(`[SEARCH DOCS] Expanding acronym: ${word} -> ${mapping.full}`);
-        // For tsquery, we need to format it properly
-        const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
-        expandedTerms.push(`(${word} | ${fullTerms})`);
+        if (hasAdvancedOperators) {
+          // For to_tsquery, we need to format it properly
+          const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
+          expandedTerms.push(`(${word} | ${fullTerms})`);
+        } else {
+          // For plainto_tsquery, include both the acronym and its expansion
+          expandedTerms.push(`${word} ${mapping.full}`);
+        }
         hasAcronymExpansion = true;
       } else {
         expandedTerms.push(word);
       }
     }
     
-    // If we expanded any acronyms, use OR instead of AND for flexibility
-    if (hasAcronymExpansion) {
-      searchTerm = expandedTerms.join(' | ');  // Changed from & to |
-      console.log('[SEARCH DOCS] Expanded query with acronyms:', searchTerm);
-    } else {
-      // Handle basic wildcard conversion (* to :*)
+    if (hasAdvancedOperators) {
+      useAdvancedQuery = true;
+      // Handle wildcards for advanced queries
       searchTerm = searchTerm.replace(/\*/g, ':*');
-      
-      // If no boolean operators, use OR for more flexible search
-      if (!searchTerm.includes('&') && !searchTerm.includes('|') && !searchTerm.includes('!')) {
-        // Split into words and join with | for OR search - more flexible!
-        const words = searchTerm.split(/\s+/).filter(word => word.length > 0);
-        if (words.length > 1) {
-          searchTerm = words.join(' | ');
-        }
-      }
+      console.log('[SEARCH DOCS] Using advanced query:', searchTerm);
+    } else if (hasAcronymExpansion) {
+      // For acronym expansion, use simple natural language with plainto_tsquery
+      searchTerm = expandedTerms.join(' ');
+      console.log('[SEARCH DOCS] Using simple plainto_tsquery with acronym expansion for:', searchTerm);
+    } else {
+      // Simple query - let plainto_tsquery handle it
+      console.log('[SEARCH DOCS] Using simple plainto_tsquery for:', searchTerm);
     }
 
     console.log('[SEARCH DOCS] Searching for:', searchTerm);
@@ -168,21 +175,21 @@ export async function searchDocs(args: any, sql: NeonQueryFunction<false, false>
     // Execute search based on repository type
     if (isCodeRepo) {
       // Search code modules and workflows
-      const moduleResults = await searchModulesWithText(sql, repository, searchTerm, Math.ceil(limit / 2), include_content);
-      const workflowResults = await searchWorkflowsWithText(sql, repository, searchTerm, Math.floor(limit / 2), include_content);
+      const moduleResults = await searchModulesWithText(sql, repository, searchTerm, Math.ceil(limit / 2), include_content, useAdvancedQuery);
+      const workflowResults = await searchWorkflowsWithText(sql, repository, searchTerm, Math.floor(limit / 2), include_content, useAdvancedQuery);
       results = [...moduleResults, ...workflowResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
     } else if (isDocRepo) {
       // Search specific documentation repository
-      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
+      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content, useAdvancedQuery);
     } else if (searchAllRepos) {
       // Hybrid search - docs, modules, and workflows
-      const docResults = await searchDocumentationWithText(sql, null, searchTerm, file_type, Math.ceil(limit / 3), include_content);
-      const moduleResults = await searchAllModulesWithText(sql, searchTerm, Math.ceil(limit / 3), include_content);
-      const workflowResults = await searchAllWorkflowsWithText(sql, searchTerm, Math.floor(limit / 3), include_content);
+      const docResults = await searchDocumentationWithText(sql, null, searchTerm, file_type, Math.ceil(limit / 3), include_content, useAdvancedQuery);
+      const moduleResults = await searchAllModulesWithText(sql, searchTerm, Math.ceil(limit / 3), include_content, useAdvancedQuery);
+      const workflowResults = await searchAllWorkflowsWithText(sql, searchTerm, Math.floor(limit / 3), include_content, useAdvancedQuery);
       results = [...docResults, ...moduleResults, ...workflowResults].sort((a, b) => b.relevance_score - a.relevance_score).slice(0, limit);
     } else {
       // Fallback to original logic for edge cases
-      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content);
+      results = await searchDocumentationWithText(sql, repository, searchTerm, file_type, limit, include_content, useAdvancedQuery);
     }
     
     console.log('[SEARCH DOCS] SQL query completed, results:', results?.length || 0);
@@ -297,10 +304,12 @@ async function searchModulesWithText(
   repository: string,
   searchTerm: string,
   limit: number,
-  include_content: boolean
+  include_content: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<SearchResultItem[]> {
-  console.log(`[searchModulesWithText] include_content=${include_content}, type=${typeof include_content}`);
+  console.log(`[searchModulesWithText] include_content=${include_content}, useAdvancedQuery=${useAdvancedQuery}`);
   let results;
+  const queryFunc = useAdvancedQuery ? 'to_tsquery' : 'plainto_tsquery';
   if (repository === 'flopy') {
     const queryString = `
       SELECT 
@@ -314,7 +323,7 @@ async function searchModulesWithText(
         semantic_purpose as summary,
         user_scenarios,
         related_concepts,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ts_rank_cd(search_vector, ${queryFunc}('english', $1)) as relevance_score,
         ${include_content ? `
         CASE 
           WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
@@ -322,7 +331,7 @@ async function searchModulesWithText(
         END as content_preview,
         ts_headline('english', 
           COALESCE(semantic_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
-          to_tsquery('english', $1), 
+          ${queryFunc}('english', $1), 
           'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
         ) as content_snippet
         ` : `
@@ -331,7 +340,7 @@ async function searchModulesWithText(
         `},
         'modules' as search_source
       FROM flopy_modules
-      WHERE search_vector @@ to_tsquery('english', $1)
+      WHERE search_vector @@ ${queryFunc}('english', $1)
       ORDER BY relevance_score DESC
       LIMIT ${limit}
     `;
@@ -351,7 +360,7 @@ async function searchModulesWithText(
         semantic_purpose as summary,
         pest_integration,
         use_cases,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ts_rank_cd(search_vector, ${queryFunc}('english', $1)) as relevance_score,
         ${include_content ? `
         CASE 
           WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
@@ -359,7 +368,7 @@ async function searchModulesWithText(
         END as content_preview,
         ts_headline('english', 
           COALESCE(semantic_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
-          to_tsquery('english', $1), 
+          ${queryFunc}('english', $1), 
           'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
         ) as content_snippet
         ` : `
@@ -368,7 +377,7 @@ async function searchModulesWithText(
         `},
         'modules' as search_source
       FROM pyemu_modules
-      WHERE search_vector @@ to_tsquery('english', $1)
+      WHERE search_vector @@ ${queryFunc}('english', $1)
       ORDER BY relevance_score DESC
       LIMIT ${limit}
     `;
@@ -384,14 +393,16 @@ async function searchDocumentationWithText(
   searchTerm: string,
   file_type: string | undefined,
   limit: number,
-  include_content: boolean
+  include_content: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<SearchResultItem[]> {
-  console.log(`[searchDocumentationWithText] include_content=${include_content}, type=${typeof include_content}`);
+  console.log(`[searchDocumentationWithText] include_content=${include_content}, useAdvancedQuery=${useAdvancedQuery}`);
+  const queryFunc = useAdvancedQuery ? 'to_tsquery' : 'plainto_tsquery';
   // Build conditions
   let whereClause = `WHERE (
     COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
     setweight(to_tsvector('english', COALESCE(content, '')), 'C')
-  ) @@ to_tsquery('english', $1)`;
+  ) @@ ${queryFunc}('english', $1)`;
   const queryParams = [searchTerm];
   
   if (repository) {
@@ -416,12 +427,12 @@ async function searchDocumentationWithText(
       ts_rank(
         COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
         setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
-        to_tsquery('english', $1)
+        ${queryFunc}('english', $1)
       ) as relevance_score,
       ${include_content ? `
       ts_headline('english', 
         COALESCE(analysis->>'title', '') || ' ' || COALESCE(content, ''), 
-        to_tsquery('english', $1), 
+        ${queryFunc}('english', $1), 
         'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
       ) as content_snippet,
       CASE 
@@ -447,10 +458,11 @@ async function searchAllModulesWithText(
   sql: NeonQueryFunction<false, false>,
   searchTerm: string,
   limit: number,
-  include_content: boolean
+  include_content: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<SearchResultItem[]> {
-  const floepyResults = await searchModulesWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content);
-  const pyemuResults = await searchModulesWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content);
+  const floepyResults = await searchModulesWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content, useAdvancedQuery);
+  const pyemuResults = await searchModulesWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content, useAdvancedQuery);
   
   return [...floepyResults, ...pyemuResults]
     .sort((a, b) => b.relevance_score - a.relevance_score)
@@ -463,9 +475,11 @@ async function searchWorkflowsWithText(
   repository: string,
   searchTerm: string,
   limit: number,
-  include_content: boolean
+  include_content: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<SearchResultItem[]> {
-  console.log(`[searchWorkflowsWithText] include_content=${include_content}, type=${typeof include_content}`);
+  console.log(`[searchWorkflowsWithText] include_content=${include_content}, useAdvancedQuery=${useAdvancedQuery}`);
+  const queryFunc = useAdvancedQuery ? 'to_tsquery' : 'plainto_tsquery';
   let results;
   if (repository === 'flopy') {
     const queryString = `
@@ -482,7 +496,7 @@ async function searchWorkflowsWithText(
         workflow_purpose,
         best_use_cases,
         prerequisites,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ts_rank_cd(search_vector, ${queryFunc}('english', $1)) as relevance_score,
         ${include_content ? `
         CASE 
           WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
@@ -490,7 +504,7 @@ async function searchWorkflowsWithText(
         END as content_preview,
         ts_headline('english', 
           COALESCE(title, '') || ' ' || COALESCE(workflow_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
-          to_tsquery('english', $1), 
+          ${queryFunc}('english', $1), 
           'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
         ) as content_snippet
         ` : `
@@ -499,7 +513,7 @@ async function searchWorkflowsWithText(
         `},
         'workflows' as search_source
       FROM flopy_workflows
-      WHERE search_vector @@ to_tsquery('english', $1)
+      WHERE search_vector @@ ${queryFunc}('english', $1)
       ORDER BY relevance_score DESC
       LIMIT ${limit}
     `;
@@ -522,7 +536,7 @@ async function searchWorkflowsWithText(
         workflow_purpose,
         common_applications as best_use_cases,
         prerequisites,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as relevance_score,
+        ts_rank_cd(search_vector, ${queryFunc}('english', $1)) as relevance_score,
         ${include_content ? `
         CASE 
           WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
@@ -530,7 +544,7 @@ async function searchWorkflowsWithText(
         END as content_preview,
         ts_headline('english', 
           COALESCE(title, '') || ' ' || COALESCE(workflow_purpose, '') || ' ' || COALESCE(embedding_text, ''), 
-          to_tsquery('english', $1), 
+          ${queryFunc}('english', $1), 
           'MaxWords=50, MinWords=20, StartSel=**[, StopSel=]**'
         ) as content_snippet
         ` : `
@@ -539,7 +553,7 @@ async function searchWorkflowsWithText(
         `},
         'workflows' as search_source
       FROM pyemu_workflows
-      WHERE search_vector @@ to_tsquery('english', $1)
+      WHERE search_vector @@ ${queryFunc}('english', $1)
       ORDER BY relevance_score DESC
       LIMIT ${limit}
     `;
@@ -553,10 +567,11 @@ async function searchAllWorkflowsWithText(
   sql: NeonQueryFunction<false, false>,
   searchTerm: string,
   limit: number,
-  include_content: boolean
+  include_content: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<SearchResultItem[]> {
-  const floepyResults = await searchWorkflowsWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content);
-  const pyemuResults = await searchWorkflowsWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content);
+  const floepyResults = await searchWorkflowsWithText(sql, 'flopy', searchTerm, Math.ceil(limit / 2), include_content, useAdvancedQuery);
+  const pyemuResults = await searchWorkflowsWithText(sql, 'pyemu', searchTerm, Math.floor(limit / 2), include_content, useAdvancedQuery);
   
   return [...floepyResults, ...pyemuResults]
     .sort((a, b) => b.relevance_score - a.relevance_score)

@@ -93,7 +93,8 @@ async function executeSearchStrategy(
     search_arrays?: boolean;
     search_source?: boolean;
   },
-  includeSnippet: boolean
+  includeSnippet: boolean,
+  useAdvancedQuery: boolean = false
 ): Promise<any[]> {
   console.log(`[SEARCH CODE] Using search strategy: ${searchStrategy}`);
   
@@ -763,8 +764,14 @@ export async function searchCode(
       throw new Error('Query parameter is required and cannot be empty');
     }
 
-    // Process search term with acronym expansion and wildcard support
+    // Process search term - use plainto_tsquery for simple queries, to_tsquery for advanced
     let searchTerm = query.trim();
+    let useAdvancedQuery = false;
+    
+    // Check if this is an advanced query that needs to_tsquery
+    const hasAdvancedOperators = searchTerm.includes('&') || searchTerm.includes('|') || 
+                                searchTerm.includes('!') || searchTerm.includes('*') || 
+                                searchTerm.includes('"');
     
     // Step 1: Expand acronyms in the search query
     const expandedTerms: string[] = [];
@@ -775,25 +782,36 @@ export async function searchCode(
       const upperWord = word.toUpperCase();
       if ((acronymMappings as any)[upperWord]) {
         const mapping = (acronymMappings as any)[upperWord];
-        // For tsquery, we need to format it properly
-        const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
-        expandedTerms.push(`(${word} | ${fullTerms})`);
-        hasAcronymExpansion = true;
         console.log(`[SEARCH CODE] Expanded acronym: ${word} -> ${mapping.full}`);
+        if (hasAdvancedOperators) {
+          // For to_tsquery, we need to format it properly
+          const fullTerms = mapping.full.toLowerCase().split(/\s+/).join('<->');
+          expandedTerms.push(`(${word} | ${fullTerms})`);
+        } else {
+          // For plainto_tsquery, include both the acronym and its expansion
+          expandedTerms.push(`${word} ${mapping.full}`);
+        }
+        hasAcronymExpansion = true;
       } else {
         expandedTerms.push(word);
       }
     }
     
-    // If we expanded any acronyms, use OR for flexibility
-    if (hasAcronymExpansion) {
-      searchTerm = expandedTerms.join(' | ');  // Changed from & to |
-    } else {
-      // Step 2: Handle wildcard conversion (* to :*)
+    if (hasAdvancedOperators) {
+      useAdvancedQuery = true;
+      // Handle wildcards for advanced queries
       searchTerm = searchTerm.replace(/\*/g, ':*');
-      
-      // Step 3: Convert to tsquery format - remove special chars except wildcards
-      searchTerm = searchTerm.replace(/[^\w\s:*]/g, '').split(/\s+/).join(' | ');  // Changed from & to |
+      console.log('[SEARCH CODE] Using advanced query:', searchTerm);
+    } else if (hasAcronymExpansion) {
+      // For acronym expansion, still use to_tsquery with OR until we update all SQL
+      useAdvancedQuery = true;
+      searchTerm = expandedTerms.join(' ').replace(/[^\w\s:*]/g, '').split(/\s+/).filter(w => w).join(' | ');
+      console.log('[SEARCH CODE] Using to_tsquery with OR for acronym expansion:', searchTerm);
+    } else {
+      // Simple query - for now keep using to_tsquery with OR logic until we can update all SQL queries
+      useAdvancedQuery = true;
+      searchTerm = searchTerm.replace(/[^\w\s:*]/g, '').split(/\s+/).filter(w => w).join(' | ');
+      console.log('[SEARCH CODE] Using to_tsquery with OR logic for:', searchTerm);
     }
     
     console.log('[SEARCH CODE] Processed search term:', searchTerm);
@@ -823,7 +841,7 @@ export async function searchCode(
       search_source
     };
     
-    console.log(`[SEARCH CODE] About to call executeSearchStrategy with include_snippet=${include_snippet}, type=${typeof include_snippet}`);
+    console.log(`[SEARCH CODE] About to call executeSearchStrategy with include_snippet=${include_snippet}, useAdvancedQuery=${useAdvancedQuery}`);
     let results = await executeSearchStrategy(
       sql,
       searchStrategy,
@@ -833,7 +851,8 @@ export async function searchCode(
       includeOptions,
       filterOptions,
       fieldSearchOptions,
-      include_snippet
+      include_snippet,
+      useAdvancedQuery
     );
 
     // Sort by relevance and filter out debug-only entries
