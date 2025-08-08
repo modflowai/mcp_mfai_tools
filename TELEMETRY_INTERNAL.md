@@ -42,27 +42,95 @@ For each tool call, the system captures:
 | `timestamp` | When the tool was called | `2025-08-08T13:54:16.001Z` |
 | `execution_time_ms` | Tool execution duration | `1764` (1.76 seconds) |
 | `user_agent` | MCP client identifier | `MCP-Client` |
+| **`output_summary`** | **Intelligent summary of output** | **See examples below** |
+| **`output_size_bytes`** | **Size of response in bytes** | **`5240`** |
+| **`result_count`** | **Number of results (search tools)** | **`10`** |
+| **`success`** | **Whether tool succeeded** | **`true`** |
+| **`error_message`** | **Error if tool failed** | **`null` or error text** |
 | `metadata` | Additional context | `{"isDevelopmentMode": false}` |
+
+### Output Summary Examples
+
+The `output_summary` field contains tool-specific intelligent summaries (NOT full content):
+
+#### Search Tools (search_docs, search_code, search_examples)
+```json
+{
+  "results_found": 10,
+  "top_result": "mf6_tutorial.py",
+  "top_relevance": 0.95,
+  "avg_relevance": 0.78,
+  "repositories": ["flopy", "pyemu"],
+  "search_method": "text"
+}
+```
+
+#### Semantic Search Tools
+```json
+{
+  "results_found": 5,
+  "top_similarity": 0.92,
+  "avg_similarity": 0.81,
+  "filter_applied": true
+}
+```
+
+#### get_file_content
+```json
+{
+  "repository": "flopy",
+  "filepath": "Notebooks/tutorial.py",
+  "file_type": "py",
+  "total_size": 42750,
+  "page_requested": 1,
+  "total_pages": 2,
+  "content_truncated": false
+}
+```
+
+**Important:** We specifically do NOT store full file contents from `get_file_content` - only metadata about what was retrieved.
 
 ## Implementation Details
 
 ### Fire-and-Forget Architecture
 ```typescript
-// Tool execution happens first
-switch (name) {
-  case 'search_docs':
-    result = await this.handleSearchDocs(args);
-    break;
-}
+// Tool execution with error handling
+let result;
+let error: Error | undefined;
 
-// Telemetry capture after execution (non-blocking)
-if (this.telemetry.isEnabled()) {
-  const executionTimeMs = Date.now() - startTime;
-  
-  // Fire-and-forget: doesn't block the response
-  this.telemetry.capture(telemetryEvent).catch(() => {
-    // Silent error handling
-  });
+try {
+  switch (name) {
+    case 'search_docs':
+      result = await this.handleSearchDocs(args);
+      break;
+  }
+} catch (e) {
+  error = e as Error;
+  throw e; // Re-throw to maintain original behavior
+} finally {
+  // Telemetry capture even on errors (non-blocking)
+  if (this.telemetry.isEnabled()) {
+    const executionTimeMs = Date.now() - startTime;
+    
+    // Extract intelligent output summary (NOT full content)
+    const outputInfo = extractOutputSummary(name, result, error);
+    
+    // Create telemetry event with output metrics
+    const telemetryEvent = createTelemetryEvent(
+      name, args, user, requestId, metadata,
+      executionTimeMs, userAgent,
+      outputInfo.summary,
+      outputInfo.sizeBytes,
+      outputInfo.resultCount,
+      outputInfo.success,
+      outputInfo.errorMessage
+    );
+    
+    // Fire-and-forget: doesn't block the response
+    this.telemetry.capture(telemetryEvent).catch(() => {
+      // Silent error handling
+    });
+  }
 }
 
 return result;
@@ -142,7 +210,8 @@ ORDER BY avg_ms DESC;
 SELECT 
     input_params->>'query' as search_query,
     COUNT(*) as frequency,
-    AVG(execution_time_ms) as avg_execution_ms
+    AVG(execution_time_ms) as avg_execution_ms,
+    AVG(result_count) as avg_results_found
 FROM mcp_tool_telemetry 
 WHERE tool_name IN ('search_docs', 'search_code', 'search_tutorials')
 AND input_params ? 'query'
@@ -150,6 +219,51 @@ AND timestamp >= NOW() - INTERVAL '7 days'
 GROUP BY input_params->>'query'
 ORDER BY frequency DESC
 LIMIT 20;
+```
+
+### Search Success Rate
+```sql
+SELECT 
+    tool_name,
+    COUNT(*) as total_searches,
+    COUNT(CASE WHEN result_count > 0 THEN 1 END) as successful_searches,
+    ROUND(100.0 * COUNT(CASE WHEN result_count > 0 THEN 1 END) / COUNT(*), 2) as success_rate_pct,
+    AVG(result_count) as avg_results
+FROM mcp_tool_telemetry 
+WHERE tool_name IN ('search_docs', 'search_code', 'search_tutorials')
+AND timestamp >= NOW() - INTERVAL '7 days'
+GROUP BY tool_name
+ORDER BY total_searches DESC;
+```
+
+### Output Size Analysis
+```sql
+SELECT 
+    tool_name,
+    MIN(output_size_bytes) as min_bytes,
+    AVG(output_size_bytes) as avg_bytes,
+    MAX(output_size_bytes) as max_bytes,
+    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY output_size_bytes) as p95_bytes
+FROM mcp_tool_telemetry 
+WHERE output_size_bytes IS NOT NULL
+AND timestamp >= NOW() - INTERVAL '7 days'
+GROUP BY tool_name
+ORDER BY avg_bytes DESC;
+```
+
+### Error Analysis
+```sql
+SELECT 
+    tool_name,
+    COUNT(CASE WHEN success = false THEN 1 END) as error_count,
+    COUNT(*) as total_calls,
+    ROUND(100.0 * COUNT(CASE WHEN success = false THEN 1 END) / COUNT(*), 2) as error_rate_pct,
+    ARRAY_AGG(DISTINCT error_message) FILTER (WHERE error_message IS NOT NULL) as unique_errors
+FROM mcp_tool_telemetry 
+WHERE timestamp >= NOW() - INTERVAL '7 days'
+GROUP BY tool_name
+HAVING COUNT(CASE WHEN success = false THEN 1 END) > 0
+ORDER BY error_count DESC;
 ```
 
 ## User Agent Limitations

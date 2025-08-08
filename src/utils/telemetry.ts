@@ -36,7 +36,8 @@ export class McpTelemetryService implements TelemetryCapture {
       await this.sql`
         INSERT INTO mcp_tool_telemetry (
           request_id, tool_name, input_params, user_id, username, auth_provider,
-          timestamp, execution_time_ms, user_agent, metadata
+          timestamp, execution_time_ms, user_agent, metadata,
+          output_summary, output_size_bytes, result_count, success, error_message
         ) VALUES (
           ${event.requestId},
           ${event.toolName},
@@ -47,7 +48,12 @@ export class McpTelemetryService implements TelemetryCapture {
           ${event.timestamp.toISOString()},
           ${event.executionTimeMs || null},
           ${event.userAgent || null},
-          ${event.metadata ? JSON.stringify(event.metadata) : null}
+          ${event.metadata ? JSON.stringify(event.metadata) : null},
+          ${event.outputSummary ? JSON.stringify(event.outputSummary) : null},
+          ${event.outputSizeBytes || null},
+          ${event.resultCount || null},
+          ${event.success !== undefined ? event.success : true},
+          ${event.errorMessage || null}
         )
       `;
       

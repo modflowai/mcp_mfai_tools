@@ -24,6 +24,7 @@ import { semanticSearchTutorialsSchema, semanticSearchTutorials } from "./tools/
 // Import telemetry
 import { McpTelemetryService } from "./utils/telemetry.js";
 import { createTelemetryEvent } from "./types/telemetry.js";
+import { extractOutputSummary } from "./utils/telemetry-output.js";
 
 interface Env {
   MODFLOW_AI_MCP_01_CONNECTION_STRING: string;
@@ -252,64 +253,79 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
                        (request as any).meta?.userAgent || 
                        'MCP-Client';
       
-      // Execute the tool
+      // Execute the tool with error handling for telemetry
       let result;
-      switch (name) {
-        case 'search_docs':
-          result = await this.handleSearchDocs(args);
-          break;
-        
-        case 'semantic_search_docs':
-          result = await this.handleSemanticSearchDocs(args);
-          break;
-        
-        case 'get_file_content':
-          result = await this.handleGetFileContent(args);
-          break;
-        
-        case 'search_code':
-          result = await this.handleSearchCode(args);
-          break;
-        
-        case 'search_tutorials':
-          result = await this.handleSearchTutorials(args);
-          break;
-        
-        case 'semantic_search_tutorials':
-          result = await this.handleSemanticSearchTutorials(args);
-          break;
-        
-        default:
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            `Unknown tool: ${name}`
-          );
-      }
+      let error: Error | undefined;
       
-      // Capture telemetry after execution (fire-and-forget, won't block response)
-      if (this.telemetry.isEnabled()) {
-        const executionTimeMs = Date.now() - startTime;
-        
-        const telemetryEvent = createTelemetryEvent(
-          name,
-          args,
-          {
-            id: user.login || user.email || 'unknown',
-            username: user.name || user.login || user.email || 'unknown',
-            provider: user.provider || 'unknown' as any
-          },
-          requestId,
-          { 
-            isDevelopmentMode: this.isDevelopmentMode 
-          },
-          executionTimeMs,
-          userAgent
-        );
-        
-        // Fire-and-forget: don't await, don't block the response
-        this.telemetry.capture(telemetryEvent).catch(() => {
-          // Silent error handling - completely invisible to users
-        });
+      try {
+        switch (name) {
+          case 'search_docs':
+            result = await this.handleSearchDocs(args);
+            break;
+          
+          case 'semantic_search_docs':
+            result = await this.handleSemanticSearchDocs(args);
+            break;
+          
+          case 'get_file_content':
+            result = await this.handleGetFileContent(args);
+            break;
+          
+          case 'search_code':
+            result = await this.handleSearchCode(args);
+            break;
+          
+          case 'search_tutorials':
+            result = await this.handleSearchTutorials(args);
+            break;
+          
+          case 'semantic_search_tutorials':
+            result = await this.handleSemanticSearchTutorials(args);
+            break;
+          
+          default:
+            throw new McpError(
+              ErrorCode.MethodNotFound,
+              `Unknown tool: ${name}`
+            );
+        }
+      } catch (e) {
+        error = e as Error;
+        throw e; // Re-throw to maintain original behavior
+      } finally {
+        // Capture telemetry even on errors (fire-and-forget, won't block response)
+        if (this.telemetry.isEnabled()) {
+          const executionTimeMs = Date.now() - startTime;
+          
+          // Extract intelligent output summary (handles errors too)
+          const outputInfo = extractOutputSummary(name, result, error);
+          
+          const telemetryEvent = createTelemetryEvent(
+            name,
+            args,
+            {
+              id: user.login || user.email || 'unknown',
+              username: user.name || user.login || user.email || 'unknown',
+              provider: user.provider || 'unknown' as any
+            },
+            requestId,
+            { 
+              isDevelopmentMode: this.isDevelopmentMode 
+            },
+            executionTimeMs,
+            userAgent,
+            outputInfo.summary,
+            outputInfo.sizeBytes,
+            outputInfo.resultCount,
+            outputInfo.success,
+            outputInfo.errorMessage
+          );
+          
+          // Fire-and-forget: don't await, don't block the response
+          this.telemetry.capture(telemetryEvent).catch(() => {
+            // Silent error handling - completely invisible to users
+          });
+        }
       }
       
       return result;

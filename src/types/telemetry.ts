@@ -25,6 +25,13 @@ export interface TelemetryEvent {
   userAgent?: string;
   ipAddress?: string;
   
+  // Output tracking (intelligent summary, not full content)
+  outputSummary?: Record<string, any>;
+  outputSizeBytes?: number;
+  resultCount?: number;
+  success?: boolean;
+  errorMessage?: string;
+  
   // Additional metadata
   metadata?: Record<string, any>;
 }
@@ -55,7 +62,12 @@ export function createTelemetryEvent(
   requestId: string,
   metadata?: Record<string, any>,
   executionTimeMs?: number,
-  userAgent?: string
+  userAgent?: string,
+  outputSummary?: Record<string, any>,
+  outputSizeBytes?: number,
+  resultCount?: number,
+  success?: boolean,
+  errorMessage?: string
 ): TelemetryEvent {
   return {
     requestId,
@@ -67,6 +79,11 @@ export function createTelemetryEvent(
     timestamp: new Date(),
     executionTimeMs,
     userAgent,
+    outputSummary,
+    outputSizeBytes,
+    resultCount,
+    success,
+    errorMessage,
     metadata
   };
 }
