@@ -150,7 +150,7 @@ export async function semanticSearchDocs(args: any, sql: NeonQueryFunction<false
       return {
         content: [{
           type: "text" as const,
-          text: `Error: No OpenAI API key available. Semantic search requires embeddings to be generated.`
+          text: `Error: Failed to generate embeddings for semantic search. Please ensure OpenAI API key is configured and valid.`
         }]
       };
     }
@@ -338,173 +338,9 @@ async function searchAllModulesWithEmbeddings(
     .slice(0, limit);
 }
 
-// Text search fallback functions (reuse logic from text search tool)
-function prepareTextSearchTerm(query: string): string {
-  let searchTerm = query.trim();
-  
-  // Handle basic wildcard conversion (* to :*)
-  searchTerm = searchTerm.replace(/\*/g, ':*');
-  
-  // If no boolean operators, use OR for flexible search
-  if (!searchTerm.includes('&') && !searchTerm.includes('|') && !searchTerm.includes('!')) {
-    // Split into words and join with | for OR search - more flexible!
-    const words = searchTerm.split(/\s+/).filter(word => word.length > 0);
-    if (words.length > 1) {
-      searchTerm = words.join(' | ');  // Changed from & to |
-    }
-  }
-  
-  return searchTerm;
-}
-
-async function searchModulesWithText(
-  sql: NeonQueryFunction<false, false>,
-  repository: string,
-  searchTerm: string,
-  filter: any,
-  limit: number
-): Promise<SemanticSearchResultItem[]> {
-  // Build filter conditions
-  let filterClause = '';
-  const queryParams = [searchTerm];
-  
-  if (repository === 'flopy') {
-    if (filter.model_family) {
-      filterClause += ' AND LOWER(model_family) = LOWER($' + (queryParams.length + 1) + ')';
-      queryParams.push(filter.model_family);
-    }
-    if (filter.package_code) {
-      filterClause += ' AND LOWER(package_code) = LOWER($' + (queryParams.length + 1) + ')';
-      queryParams.push(filter.package_code);
-    }
-  } else if (repository === 'pyemu') {
-    if (filter.category) {
-      filterClause += ' AND LOWER(category) = LOWER($' + (queryParams.length + 1) + ')';
-      queryParams.push(filter.category);
-    }
-  }
-  
-  let results;
-  if (repository === 'flopy') {
-    const queryString = `
-      SELECT 
-        relative_path as filepath,
-        '${repository}' as repo_name,
-        'py' as file_type,
-        module_name,
-        package_code,
-        model_family,
-        semantic_purpose as title,
-        semantic_purpose as summary,
-        user_scenarios,
-        related_concepts,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as similarity_score,
-        CASE 
-          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
-          ELSE embedding_text
-        END as content_preview,
-        'modules' as search_source
-      FROM flopy_modules
-      WHERE search_vector @@ to_tsquery('english', $1)${filterClause}
-      ORDER BY similarity_score DESC
-      LIMIT ${limit}
-    `;
-    results = await sql.query(queryString, queryParams);
-  } else {
-    const queryString = `
-      SELECT 
-        relative_path as filepath,
-        '${repository}' as repo_name,
-        'py' as file_type,
-        module_name,
-        NULL as package_code,
-        NULL as model_family,
-        category,
-        semantic_purpose as title,
-        semantic_purpose as summary,
-        pest_integration,
-        use_cases,
-        ts_rank_cd(search_vector, to_tsquery('english', $1)) as similarity_score,
-        CASE 
-          WHEN length(embedding_text) > 300 THEN left(embedding_text, 300) || '...'
-          ELSE embedding_text
-        END as content_preview,
-        'modules' as search_source
-      FROM pyemu_modules
-      WHERE search_vector @@ to_tsquery('english', $1)${filterClause}
-      ORDER BY similarity_score DESC
-      LIMIT ${limit}
-    `;
-    results = await sql.query(queryString, queryParams);
-  }
-  
-  return Array.isArray(results) ? results : [];
-}
-
-async function searchDocumentationWithText(
-  sql: NeonQueryFunction<false, false>,
-  repository: string | null,
-  searchTerm: string,
-  limit: number
-): Promise<SemanticSearchResultItem[]> {
-  // Build conditions
-  let whereClause = `WHERE (
-      COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-      setweight(to_tsvector('english', COALESCE(analysis->>'summary', '')), 'B') ||
-      setweight(to_tsvector('english', COALESCE(content, '')), 'C')
-    ) @@ to_tsquery('english', $1)`;
-  const queryParams = [searchTerm];
-  
-  if (repository) {
-    whereClause += ' AND repo_name = $' + (queryParams.length + 1);
-    queryParams.push(repository);
-  } else {
-    whereClause += " AND repo_name NOT IN ('flopy', 'pyemu')";
-  }
-  
-  const queryString = `
-    SELECT 
-      filepath, 
-      repo_name, 
-      file_type, 
-      created_at, 
-      COALESCE(analysis->>'title', '') as title,
-      COALESCE(analysis->>'summary', '') as summary,
-      ts_rank(
-        COALESCE(setweight(to_tsvector('english', COALESCE(analysis->>'title', '')), 'A'), '') ||
-        setweight(to_tsvector('english', COALESCE(analysis->>'summary', '')), 'B') ||
-        setweight(to_tsvector('english', COALESCE(content, '')), 'C'),
-        to_tsquery('english', $1)
-      ) as similarity_score,
-      CASE 
-        WHEN length(content) > 300 THEN left(content, 300) || '...'
-        ELSE content
-      END as content_preview,
-      'documentation' as search_source
-    FROM repository_files
-    ${whereClause}
-    ORDER BY similarity_score DESC, created_at DESC 
-    LIMIT ${limit}
-  `;
-  
-  const results = await sql.query(queryString, queryParams);
-  
-  return Array.isArray(results) ? results : [];
-}
-
-async function searchAllModulesWithText(
-  sql: NeonQueryFunction<false, false>,
-  searchTerm: string,
-  filter: any,
-  limit: number
-): Promise<SemanticSearchResultItem[]> {
-  const floepyResults = await searchModulesWithText(sql, 'flopy', searchTerm, filter, Math.ceil(limit / 2));
-  const pyemuResults = await searchModulesWithText(sql, 'pyemu', searchTerm, filter, Math.floor(limit / 2));
-  
-  return [...floepyResults, ...pyemuResults]
-    .sort((a, b) => b.similarity_score - a.similarity_score)
-    .slice(0, limit);
-}
+// Note: Text search fallback has been intentionally removed.
+// Semantic search should always use embeddings for accurate results.
+// If embeddings are not available, an error is returned to maintain search quality.
 
 // Helper functions for workflow search with embeddings
 async function searchWorkflowsWithEmbeddings(
@@ -647,7 +483,7 @@ function formatSemanticSearchResults(
   if (uniqueTypes.length > 0) {
     outputText += `- File types: ${uniqueTypes.join(', ')}\n`;
   }
-  outputText += `- Search method: vector_similarity\n\n`;
+  outputText += `- Search method: ${usedEmbeddings ? 'vector_similarity (OpenAI embeddings)' : 'text_fallback (full-text search)'}\n\n`;
 
   outputText += `Results:\n`;
   resultsArray.forEach((result: any, index: number) => {
