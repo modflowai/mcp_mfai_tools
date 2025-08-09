@@ -21,6 +21,7 @@ import { getFileContentSchema, getFileContentTool } from "./tools/get-file-conte
 import { searchCodeSchema, searchCode } from "./tools/search-code.js";
 import { searchTutorialsSchema, searchTutorials } from "./tools/search-tutorials.js";
 import { semanticSearchTutorialsSchema, semanticSearchTutorials } from "./tools/semantic-search-tutorials.js";
+import { getModflowAiInfoSchema, getModflowAiInfo } from "./tools/get-modflow-ai-info.js";
 // Import telemetry
 import { McpTelemetryService } from "./utils/telemetry.js";
 import { createTelemetryEvent } from "./types/telemetry.js";
@@ -228,6 +229,11 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
         name: semanticSearchTutorialsSchema.name,
         description: semanticSearchTutorialsSchema.description,
         inputSchema: semanticSearchTutorialsSchema.inputSchema,
+      },
+      {
+        name: getModflowAiInfoSchema.name,
+        description: getModflowAiInfoSchema.description,
+        inputSchema: getModflowAiInfoSchema.inputSchema,
       }
     ];
     
@@ -283,6 +289,10 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
             result = await this.handleSemanticSearchTutorials(args);
             break;
           
+          case 'get_modflow_ai_info':
+            result = await this.handleGetModflowAiInfo(args);
+            break;
+          
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -331,7 +341,7 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
       return result;
     });
     
-    console.log("[MCP] Registered tools:", searchDocsSchema.name, semanticSearchDocsSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchTutorialsSchema.name, semanticSearchTutorialsSchema.name);
+    console.log("[MCP] Registered tools:", searchDocsSchema.name, semanticSearchDocsSchema.name, getFileContentSchema.name, searchCodeSchema.name, searchTutorialsSchema.name, semanticSearchTutorialsSchema.name, getModflowAiInfoSchema.name);
     
     if (this.isDevelopmentMode) {
       console.log("[MCP] ⚠️  DEVELOPMENT MODE ACTIVE - Authentication bypassed");
@@ -344,25 +354,35 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
   }
   
   private checkUserAccess(user: Props): boolean {
-    // Check GitHub users (by username)
-    if (user.provider === 'github' && user.login && this.ALLOWED_GITHUB_USERS.has(user.login)) {
-      console.log(`[MCP] Authenticated GitHub user: ${user.login}`);
+    // More flexible authentication - check both lists regardless of provider
+    // This matches the reference implementation's permissive behavior
+    
+    // Check if it's a GitHub user (by username)
+    if (user.login && this.ALLOWED_GITHUB_USERS.has(user.login)) {
+      console.log(`[MCP] Authenticated user via GitHub username: ${user.login}`);
       return true;
     }
     
-    // Check Google users (by email)
-    if (user.provider === 'google' && user.email && this.ALLOWED_GOOGLE_USERS.has(user.email)) {
-      console.log(`[MCP] Authenticated Google user: ${user.email}`);
+    // Check if it's a Google user (by email)
+    if (user.email && this.ALLOWED_GOOGLE_USERS.has(user.email)) {
+      console.log(`[MCP] Authenticated user via Google email: ${user.email}`);
       return true;
     }
     
     // For Google OAuth, the login field might contain the email
-    if (user.provider === 'google' && user.login && this.ALLOWED_GOOGLE_USERS.has(user.login)) {
-      console.log(`[MCP] Authenticated Google user: ${user.login}`);
+    // Check both lists for flexibility
+    if (user.login && this.ALLOWED_GOOGLE_USERS.has(user.login)) {
+      console.log(`[MCP] Authenticated user via Google email in login field: ${user.login}`);
       return true;
     }
     
-    console.log(`[MCP] Authentication failed for user: ${user.login || user.email} (provider: ${user.provider})`);
+    // Also check if email appears in GitHub users (for flexibility)
+    if (user.email && this.ALLOWED_GITHUB_USERS.has(user.email)) {
+      console.log(`[MCP] Authenticated user via GitHub with email: ${user.email}`);
+      return true;
+    }
+    
+    console.log(`[MCP] Authentication failed for user: ${user.login || user.email} (provider: ${user.provider || 'not set'})`);
     return false;
   }
   
@@ -389,5 +409,9 @@ export default class MfaiToolsMCP extends McpAgent<Env, {}, Props> {
 
   private async handleSemanticSearchTutorials(args: any) {
     return await semanticSearchTutorials(args, this.sql, this.env.OPENAI_API_KEY);
+  }
+  
+  private async handleGetModflowAiInfo(args: any) {
+    return await getModflowAiInfo(args, this.sql);
   }
 }

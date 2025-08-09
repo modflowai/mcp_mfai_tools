@@ -59,7 +59,7 @@ mcp_mfai_tools/
 
 ### Tools Overview
 
-This MCP server provides **6 specialized search tools** designed for different use cases in the MODFLOW/PEST ecosystem:
+This MCP server provides **7 specialized tools** designed for different use cases in the MODFLOW/PEST ecosystem:
 
 | Tool | Purpose | Best For | Status |
 |------|---------|----------|---------|
@@ -69,6 +69,7 @@ This MCP server provides **6 specialized search tools** designed for different u
 | **🤖 semantic_search_tutorials** | Semantic tutorial search | Concept-based tutorial discovery using embeddings | ✅ **WORKING** |
 | **🔍 semantic_search_docs** | Semantic documentation search | Concept-based theory discovery using embeddings | ✅ **WORKING** |
 | **📁 get_file_content** | Direct file access | Complete file retrieval by exact path with pagination | ✅ **WORKING** |
+| **ℹ️ get_modflow_ai_info** | MODFLOW AI overview | Comprehensive information about MODFLOW AI capabilities | ✅ **WORKING** |
 
 ### Architecture: Specialized Tools
 
@@ -83,6 +84,7 @@ This MCP server provides **6 specialized search tools** designed for different u
 
 **Utility Tools**:
 - **get_file_content**: Direct file retrieval with automatic pagination for large files
+- **get_modflow_ai_info**: Comprehensive overview of MODFLOW AI capabilities and resources
 
 ### Detailed Tool Documentation
 
@@ -311,6 +313,45 @@ mcp__mfaitools__get_file_content({
   filepath: "flopy/mf6/modflow/mfgwfwel.py"
 })
 ```
+
+### 7. ℹ️ get_modflow_ai_info - MODFLOW AI Overview
+**Get comprehensive information about MODFLOW AI capabilities and resources.**
+
+**Purpose**: Provide an overview of MODFLOW AI, available repositories, tools, and usage guidance.
+
+**Key Features**:
+- **Dynamic repository listing** from database
+- **Comprehensive tool documentation**
+- **Usage statistics** (optional)
+- **Getting started guide**
+- **Example queries**
+- **No parameters required** - returns all information
+
+**Parameters**:
+```typescript
+{
+  include_stats?: boolean           // Optional: include database statistics (default: true)
+}
+```
+
+**Example Usage**:
+```typescript
+// Get complete MODFLOW AI information
+mcp__mfaitools__get_modflow_ai_info()
+
+// Get info without statistics
+mcp__mfaitools__get_modflow_ai_info({
+  include_stats: false
+})
+```
+
+**Returns**:
+- What MODFLOW AI is and its purpose
+- List of all available repositories (dynamically fetched)
+- Available search tools and their usage
+- Database statistics (file counts, etc.)
+- Getting started examples
+- Common use cases
 
 ## 🎛️ Advanced User Controls
 

@@ -42,8 +42,26 @@ app.get("/authorize", async (c) => {
     // In production, you might want to store the last used provider
   }
 
+  // Try to lookup client, or create a default one for MCP Playground
+  let client;
+  try {
+    client = await c.env.OAUTH_PROVIDER.lookupClient(clientId);
+  } catch (error) {
+    // If client not found, create a default client object for MCP Playground
+    if (clientId === 'blWJmAqpdqCZNZSJ') {
+      client = {
+        clientId: 'blWJmAqpdqCZNZSJ',
+        clientName: 'MCP Playground',
+        clientUri: 'https://playground.ai.cloudflare.com',
+        redirectUris: ['https://playground.ai.cloudflare.com/oauth/callback']
+      };
+    } else {
+      throw error;
+    }
+  }
+
   return renderProviderSelectionDialog(c.req.raw, {
-    client: await c.env.OAUTH_PROVIDER.lookupClient(clientId),
+    client: client,
     server: {
       name: "MFAI MCP Server",
       logo: "https://raw.githubusercontent.com/modflowai/public/refs/heads/main/public/modflow-ai-logo.svg",

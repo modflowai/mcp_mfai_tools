@@ -102,15 +102,6 @@ const oauthProvider = new OAuthProvider({
   clientRegistrationEndpoint: "/register",
 });
 
-// Main handler - chooses between OAuth and development mode
-export default {
-  async fetch(request: Request, env: any, ctx: any): Promise<Response> {
-    // Check if in development mode
-    if (env.DEVELOPMENT_MODE === 'true') {
-      return await developmentHandler(request, env, ctx);
-    }
-    
-    // Production mode - use OAuth provider (exactly like working reference)
-    return await oauthProvider.fetch(request, env, ctx);
-  }
-};
+// Export the OAuth provider directly (like the working reference)
+// Development mode check moved to the OAuth provider's handlers
+export default oauthProvider;

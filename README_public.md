@@ -26,6 +26,7 @@ Each tool is optimized for specific content types, ensuring relevant and accurat
 4. **Theory & Documentation Search** (`search_docs`) - Focused theory search with automatic pagination
 5. **Semantic Documentation Search** (`semantic_search_docs`) - Concept-based documentation discovery
 6. **Direct File Retrieval** (`get_file_content`) - Complete file access with pagination
+7. **MODFLOW AI Overview** (`get_modflow_ai_info`) - Comprehensive information about capabilities and resources
 
 ## 📚 Available Tools
 
@@ -200,6 +201,26 @@ Query: {
 }
 
 Response: Complete file content with syntax highlighting and metadata
+```
+
+### 7. get_modflow_ai_info
+**Purpose**: Get comprehensive information about MODFLOW AI capabilities and resources
+
+**Features**:
+- Explains what MODFLOW AI is and its purpose
+- Dynamically lists all available repositories from database
+- Describes all search tools and their usage
+- Provides database statistics (file counts, modules, workflows)
+- Includes getting started guide and example queries
+- No parameters required - returns complete overview
+
+**Example Usage**:
+```json
+Query: mcp__mfaitools__get_modflow_ai_info()
+
+Response: {
+  "content": "# MODFLOW AI - Groundwater Modeling Intelligence\n\n## What is MODFLOW AI?\n\nMODFLOW AI is an advanced Model Context Protocol (MCP) server...\n\n## Available Resources\n\n### Documentation Repositories\n- mf6: 892 documents\n- pest: 421 documents\n...\n\n### Available Search Tools\n1. search_docs - Full-text search...\n2. semantic_search_docs - AI-powered search...\n..."
+}
 ```
 
 ## 🗂️ Supported Repositories

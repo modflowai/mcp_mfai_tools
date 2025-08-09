@@ -10,7 +10,8 @@
     "tail": "wrangler tail --config config/wrangler.toml",
     "test:client": "node examples/simple-mcp-client.js",
     "build": "tsc",
-    "clean": "rm -rf dist .wrangler"
+    "clean": "rm -rf dist .wrangler",
+    "update-docs": "tsx scripts/update-modflowai-docs.ts"
   },
   "dependencies": {
     "@cloudflare/kv-asset-handler": "^0.4.0",
@@ -25,6 +26,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "wrangler": "^4.28.0"
   }

@@ -121,7 +121,7 @@ wrangler kv:namespace create OAUTH_KV
 
 ## Available MCP Tools
 
-The server provides four specialized tools for MODFLOW/PEST documentation and code:
+The server provides seven specialized tools for MODFLOW/PEST documentation and code:
 
 ### Primary Search Tools (Phase 2)
 1. **search_examples** - Tutorial and workflow search
@@ -143,12 +143,19 @@ The server provides four specialized tools for MODFLOW/PEST documentation and co
    - Automatically expands detected acronyms
    - Best for: Understanding concepts, mathematical formulations, reference material, and "what is modflow ai" queries
 
-### Utility Tool
+### Utility Tools
 4. **get_file_content** - Direct file retrieval
    - Retrieves complete file content by exact filepath
    - Returns full source code or documentation with metadata
    - Handles all three table types: repository_files, workflows, and modules
    - Use after search tools to examine specific files in detail
+
+5. **get_modflow_ai_info** - MODFLOW AI overview and guidance
+   - Provides comprehensive information about MODFLOW AI
+   - Dynamically lists all available repositories from database
+   - Explains all search tools and their usage
+   - Includes database statistics and getting started guide
+   - No parameters required - returns complete overview
 
 ### Search Features
 All search tools include:
